@@ -44,7 +44,7 @@ export function addTask(boardId, taskData) {
     createdAt: taskData.createdAt || new Date().toISOString(),
     deadline: taskData.deadline || null,
     priority: taskData.priority || null,
-    columnId: taskData.columnId || "to-do",
+    columnId: taskData.columnId || "todo",
   };
 
   tasks.push(newTask);

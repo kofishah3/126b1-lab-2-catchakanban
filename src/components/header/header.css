@@ -1,0 +1,105 @@
+.header {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--spacing-lg);
+  border-bottom: 1px solid var(--bg-secondary);
+  background-color: var(--bg-primary);
+}
+
+.header__left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.header__title {
+  font-size: 1.25rem;
+  color: var(--text-primary);
+  margin: 0;
+  font-family: var(--font-heading);
+  font-weight: 700;
+}
+
+.header__add-task-button {
+  background-color: var(--todo-accent);
+  color: white;
+  border: none;
+  padding: 8px 18px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  margin-left: var(--spacing-md);
+  box-shadow: 0 4px 12px rgba(255, 107, 107, 0.2);
+}
+
+.header__add-task-button:hover {
+  background-color: #ff5252;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(255, 107, 107, 0.3);
+}
+
+.header__add-task-button:active {
+  transform: translateY(0);
+}
+
+.header__add-task-icon {
+  width: 16px;
+  height: 16px;
+  stroke-width: 3px;
+}
+
+.header__menu-button {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: var(--spacing-xs);
+  border-radius: var(--radius-sm);
+  transition: var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.header__menu-button:hover {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.header__menu-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.header__add-task-button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 4px rgba(255, 107, 107, 0.2);
+}
+
+@media (max-width: 768px) {
+  .header__title {
+    font-size: 1.1rem;
+  }
+
+  .header__add-task-button span {
+    display: none;
+  }
+
+  .header__add-task-button {
+    padding: 8px;
+    margin-left: var(--spacing-sm);
+  }
+
+  .header__add-task-icon {
+    margin: 0 auto;
+  }
+}

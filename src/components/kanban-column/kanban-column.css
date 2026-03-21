@@ -53,10 +53,10 @@
   stroke-width: 2.5px;
 }
 
-.kanban-column--to-do {
+.kanban-column--todo {
   background: var(--todo-bg);
 }
-.kanban-column--to-do .kanban-column__header {
+.kanban-column--todo .kanban-column__header {
   background-color: #ffd6d6;
   color: #d63031;
 }

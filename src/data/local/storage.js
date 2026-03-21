@@ -9,7 +9,7 @@
  *   deadline: date,
  *   // (optional, e.g., "2024-12-31"),
  *   priority: string,      // ("Low", "Medium", "High"),
- *   columnId: string,      // The status of the card, or the column this task belongs to (e.g., "to-do", "doing", "done")
+ *   columnId: string,      // The status of the card, or the column this task belongs to (e.g., "todo", "doing", "done")
  * }
  */
 

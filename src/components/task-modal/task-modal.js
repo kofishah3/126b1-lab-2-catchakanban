@@ -98,15 +98,20 @@ function getFocusableElements(container) {
 
 function setupPriorityButtons() {
   document.querySelectorAll(".priority-buttons__button").forEach((btn) => {
-    btn.addEventListener("click", () => activatePriority(btn));
-
-    btn.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        activatePriority(btn);
-      }
-    });
+    btn.addEventListener("click", handlePriorityClick);
+    btn.addEventListener("keydown", handlePriorityKeydown);
   });
+}
+
+function handlePriorityClick(e) {
+  activatePriority(e.currentTarget);
+}
+
+function handlePriorityKeydown(e) {
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    activatePriority(e.currentTarget);
+  }
 }
 
 function activatePriority(activeBtn) {

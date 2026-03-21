@@ -1,3 +1,16 @@
+export function createElement(tag, className = "", attributes = {}) {
+  const element = document.createElement(tag);
+  if (className) element.className = className;
+  for (const [key, value] of Object.entries(attributes)) {
+    if (key.startsWith("dataset.")) {
+      element.dataset[key.replace("dataset.", "")] = value;
+    } else {
+      element.setAttribute(key, value);
+    }
+  }
+  return element;
+}
+
 export function getFocusableElements(container) {
   return Array.from(
     container.querySelectorAll(
