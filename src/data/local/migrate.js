@@ -68,7 +68,6 @@ export async function migrateFromLocalStorage() {
 
   await tx.done;
 
-  // Clean up localStorage keys
   for (const board of boards) {
     localStorage.removeItem(`tasks-${board.id}`);
   }
