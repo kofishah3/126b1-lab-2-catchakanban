@@ -1,20 +1,25 @@
+import { getDb } from "../data/local/database.js";
 import {
   generateTaskId,
   loadTasks,
-  saveTasks,
-  clearTasksKey,
+  putTask,
+  removeTask,
+  getTask,
+  clearBoardTasks,
   getBoards,
-  saveBoards,
+  putBoard,
+  removeBoard,
 } from "../data/local/storage.js";
+import { recordChange } from "../data/local/manifest.js";
 
 // ===== TASK SYNC OPERATIONS =====
 
 /**
  * Get all tasks for a specific board
  * @param {string} boardId
- * @returns {Array}
+ * @returns {Promise<Array>}
  */
-export function getTasks(boardId) {
+export async function getTasks(boardId) {
   return loadTasks(boardId);
 }
 
@@ -22,33 +27,38 @@ export function getTasks(boardId) {
  * Get tasks filtered by column for a specific board
  * @param {string} boardId
  * @param {string} columnId
- * @returns {Array}
+ * @returns {Promise<Array>}
  */
-export function getTasksByColumn(boardId, columnId) {
-  const tasks = loadTasks(boardId);
-  return tasks.filter((task) => task.columnId === columnId);
+export async function getTasksByColumn(boardId, columnId) {
+  const db = await getDb();
+  return db.getAllFromIndex("tasks", "by-board-column", [boardId, columnId]);
 }
 
 /**
  * Add a new task to a board
  * @param {string} boardId
  * @param {Object} taskData
- * @returns {Object} The created task object
+ * @returns {Promise<Object>} The created task object
  */
-export function addTask(boardId, taskData) {
-  const tasks = loadTasks(boardId);
+export async function addTask(boardId, taskData) {
+  const now = new Date().toISOString();
 
   const newTask = {
     id: generateTaskId(),
+    boardId,
     title: taskData.title || "Untitled Task",
-    createdAt: taskData.createdAt || new Date().toISOString(),
+    createdAt: taskData.createdAt || now,
+    updatedAt: now,
     deadline: taskData.deadline || null,
     priority: taskData.priority || null,
     columnId: taskData.columnId || "todo",
   };
 
-  tasks.push(newTask);
-  saveTasks(boardId, tasks);
+  const db = await getDb();
+  const tx = db.transaction(["tasks", "manifest"], "readwrite");
+  await putTask(newTask, tx);
+  await recordChange("task", newTask.id, "created", tx);
+  await tx.done;
 
   return newTask;
 }
@@ -58,27 +68,32 @@ export function addTask(boardId, taskData) {
  * @param {string} boardId
  * @param {string} taskId
  * @param {Object} updates
- * @returns {Object} The updated task object
+ * @returns {Promise<Object>} The updated task object
  * @throws {Error} If task is not found in the board
  */
-export function updateTask(boardId, taskId, updates) {
-  const tasks = loadTasks(boardId);
-  const taskIndex = tasks.findIndex((task) => task.id === taskId);
+export async function updateTask(boardId, taskId, updates) {
+  const existing = await getTask(taskId);
 
-  if (taskIndex === -1) {
+  if (!existing || existing.boardId !== boardId) {
     throw new Error(`Task not found: ${taskId}`);
   }
 
-  tasks[taskIndex] = {
-    ...tasks[taskIndex],
+  const updatedTask = {
+    ...existing,
     ...updates,
-    id: tasks[taskIndex].id,
-    createdAt: tasks[taskIndex].createdAt,
+    id: existing.id,
+    boardId: existing.boardId,
+    createdAt: existing.createdAt,
+    updatedAt: new Date().toISOString(),
   };
 
-  saveTasks(boardId, tasks);
+  const db = await getDb();
+  const tx = db.transaction(["tasks", "manifest"], "readwrite");
+  await putTask(updatedTask, tx);
+  await recordChange("task", taskId, "modified", tx);
+  await tx.done;
 
-  return tasks[taskIndex];
+  return updatedTask;
 }
 
 /**
@@ -87,15 +102,18 @@ export function updateTask(boardId, taskId, updates) {
  * @param {string} taskId
  * @throws {Error} If task is not found in the board
  */
-export function deleteTask(boardId, taskId) {
-  const tasks = loadTasks(boardId);
-  const filteredTasks = tasks.filter((task) => task.id !== taskId);
+export async function deleteTask(boardId, taskId) {
+  const existing = await getTask(taskId);
 
-  if (filteredTasks.length === tasks.length) {
+  if (!existing || existing.boardId !== boardId) {
     throw new Error(`Task not found: ${taskId}`);
   }
 
-  saveTasks(boardId, filteredTasks);
+  const db = await getDb();
+  const tx = db.transaction(["tasks", "manifest"], "readwrite");
+  await removeTask(taskId, tx);
+  await recordChange("task", taskId, "deleted", tx);
+  await tx.done;
 }
 
 /**
@@ -103,9 +121,9 @@ export function deleteTask(boardId, taskId) {
  * @param {string} boardId
  * @param {string} taskId
  * @param {string} newColumnId
- * @returns {Object} The updated task object
+ * @returns {Promise<Object>} The updated task object
  */
-export function moveTask(boardId, taskId, newColumnId) {
+export async function moveTask(boardId, taskId, newColumnId) {
   return updateTask(boardId, taskId, { columnId: newColumnId });
 }
 
@@ -113,8 +131,17 @@ export function moveTask(boardId, taskId, newColumnId) {
  * Remove all tasks belonging to a board
  * @param {string} boardId
  */
-export function clearBoardTasks(boardId) {
-  clearTasksKey(boardId);
+export async function clearAllBoardTasks(boardId) {
+  const tasks = await loadTasks(boardId);
+  const db = await getDb();
+  const tx = db.transaction(["tasks", "manifest"], "readwrite");
+
+  for (const task of tasks) {
+    tx.objectStore("tasks").delete(task.id);
+    await recordChange("task", task.id, "deleted", tx);
+  }
+
+  await tx.done;
 }
 
 // ===== BOARD SYNC OPERATIONS =====
@@ -124,18 +151,23 @@ export { getBoards };
 /**
  * Add a new board
  * @param {string} name
- * @returns {Object} The created board object
+ * @returns {Promise<Object>} The created board object
  */
-export function addBoard(name) {
-  const boards = getBoards();
+export async function addBoard(name) {
+  const now = new Date().toISOString();
 
   const newBoard = {
     id: `board-${Date.now()}`,
     name,
+    createdAt: now,
+    updatedAt: now,
   };
 
-  boards.push(newBoard);
-  saveBoards(boards);
+  const db = await getDb();
+  const tx = db.transaction(["boards", "manifest"], "readwrite");
+  await putBoard(newBoard, tx);
+  await recordChange("board", newBoard.id, "created", tx);
+  await tx.done;
 
   return newBoard;
 }
@@ -144,10 +176,17 @@ export function addBoard(name) {
  * Delete a board and all its tasks
  * @param {string} boardId
  */
-export function deleteBoard(boardId) {
-  clearBoardTasks(boardId);
+export async function deleteBoard(boardId) {
+  const tasks = await loadTasks(boardId);
+  const db = await getDb();
+  const tx = db.transaction(["boards", "tasks", "manifest"], "readwrite");
 
-  const boards = getBoards();
-  const filtered = boards.filter((b) => b.id !== boardId);
-  saveBoards(filtered);
+  for (const task of tasks) {
+    tx.objectStore("tasks").delete(task.id);
+    await recordChange("task", task.id, "deleted", tx);
+  }
+
+  await removeBoard(boardId, tx);
+  await recordChange("board", boardId, "deleted", tx);
+  await tx.done;
 }
