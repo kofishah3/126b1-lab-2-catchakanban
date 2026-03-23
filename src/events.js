@@ -16,7 +16,7 @@ export function setupEventListeners() {
   });
 
   document.addEventListener("create-board", async (e) => {
-    const newBoard = addBoard(e.detail.name);
+    const newBoard = await addBoard(e.detail.name);
     state.boards.push(newBoard);
     state.currentBoardId = newBoard.id;
     renderBoardsNav();
@@ -29,7 +29,7 @@ export function setupEventListeners() {
   });
 
   document.addEventListener("create-task", async (e) => {
-    addTask(state.currentBoardId, {
+    await addTask(state.currentBoardId, {
       title: e.detail.title,
       columnId: e.detail.columnId,
       priority: e.detail.priority,
@@ -45,14 +45,14 @@ export function setupEventListeners() {
       title: "Delete Task",
       message: "Are you sure you want to delete this task?",
       onConfirm: async () => {
-        deleteTask(state.currentBoardId, e.detail.taskId);
+        await deleteTask(state.currentBoardId, e.detail.taskId);
         await renderBoard();
       },
     });
   });
 
   document.addEventListener("move-task", async (e) => {
-    const tasks = getTasks(state.currentBoardId);
+    const tasks = await getTasks(state.currentBoardId);
     const task = tasks.find((t) => t.id === e.detail.taskId);
     if (!task) return;
 
@@ -60,12 +60,12 @@ export function setupEventListeners() {
     if (columnIndex === -1 || columnIndex === COLUMNS.length - 1) return;
 
     const nextColumnId = COLUMNS[columnIndex + 1].id;
-    moveTask(state.currentBoardId, task.id, nextColumnId);
+    await moveTask(state.currentBoardId, task.id, nextColumnId);
     await renderBoard();
   });
 
   document.addEventListener("move-task-back", async (e) => {
-    const tasks = getTasks(state.currentBoardId);
+    const tasks = await getTasks(state.currentBoardId);
     const task = tasks.find((t) => t.id === e.detail.taskId);
     if (!task) return;
 
@@ -73,12 +73,12 @@ export function setupEventListeners() {
     if (columnIndex === -1 || columnIndex === 0) return;
 
     const prevColumnId = COLUMNS[columnIndex - 1].id;
-    moveTask(state.currentBoardId, task.id, prevColumnId);
+    await moveTask(state.currentBoardId, task.id, prevColumnId);
     await renderBoard();
   });
 
   document.addEventListener("move-task-to-column", async (e) => {
-    moveTask(state.currentBoardId, e.detail.taskId, e.detail.newColumnId);
+    await moveTask(state.currentBoardId, e.detail.taskId, e.detail.newColumnId);
     await renderBoard();
   });
 
