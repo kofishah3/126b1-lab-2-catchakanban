@@ -29,16 +29,20 @@ export function renderBoardsNav() {
   state.boards.forEach((board) => {
     const isActive = board.id === state.currentBoardId;
 
-    const link = createElement("div", `board-link focus-none focus-ring ${isActive ? "board-link--active" : ""}`, {
-      "dataset.boardId": board.id,
-      tabindex: "0",
-      role: "button",
-      "aria-label": `Switch to board: ${board.name}`
-    });
+    const link = createElement(
+      "div",
+      `board-link focus-none focus-ring ${isActive ? "board-link--active" : ""}`,
+      {
+        "dataset.boardId": board.id,
+        tabindex: "0",
+        role: "button",
+        "aria-label": `Switch to board: ${board.name}`,
+      },
+    );
 
     const icon = createElement("i", "", {
       "dataset.lucide": "layout",
-      "aria-hidden": "true"
+      "aria-hidden": "true",
     });
     link.appendChild(icon);
 
@@ -62,9 +66,13 @@ export function renderBoardsNav() {
     });
 
     if (state.boards.length > 1) {
-      const deleteBtn = createElement("button", "board-link__delete-button focus-none focus-ring", {
-        "aria-label": `Delete board: ${board.name}`
-      });
+      const deleteBtn = createElement(
+        "button",
+        "board-link__delete-button focus-none focus-ring",
+        {
+          "aria-label": `Delete board: ${board.name}`,
+        },
+      );
       deleteBtn.innerHTML = `<i data-lucide="trash-2" class="board-link__delete-icon" aria-hidden="true"></i>`;
 
       deleteBtn.addEventListener("click", async (e) => {
@@ -107,9 +115,13 @@ export function renderBoardsNav() {
 export async function renderBoard() {
   if (!UI_ELEMENTS.APP) return;
 
-  const currentBoard = state.boards.find((board) => board.id === state.currentBoardId);
+  const currentBoard = state.boards.find(
+    (board) => board.id === state.currentBoardId,
+  );
   if (UI_ELEMENTS.BOARD_TITLE) {
-    UI_ELEMENTS.BOARD_TITLE.textContent = currentBoard ? currentBoard.name : "Kanban Board";
+    UI_ELEMENTS.BOARD_TITLE.textContent = currentBoard
+      ? currentBoard.name
+      : "Kanban Board";
   }
 
   UI_ELEMENTS.APP.innerHTML = "";
@@ -119,8 +131,14 @@ export async function renderBoard() {
   const boardTasks = await getTasks(state.currentBoardId);
 
   const columnPromises = COLUMNS.map((column) => {
-    const columnTasks = boardTasks.filter((task) => task.columnId === column.id);
-    const kanbanColumn = new KanbanColumn(column, columnTasks, state.currentBoardId);
+    const columnTasks = boardTasks.filter(
+      (task) => task.columnId === column.id,
+    );
+    const kanbanColumn = new KanbanColumn(
+      column,
+      columnTasks,
+      state.currentBoardId,
+    );
     return kanbanColumn.render();
   });
 

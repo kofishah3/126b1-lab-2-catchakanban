@@ -1,10 +1,15 @@
 import { state, COLUMNS } from "./state.js";
-import { addBoard, addTask, deleteTask, moveTask, getTasks } from "./services/sync.js";
+import { addBoard, addTask, updateTask, deleteTask, moveTask, getTasks } from "./services/sync.js";
 import { createKanbanBoardModal } from "./components/kanban-board-modal/kanban-board-modal.js";
 import { createTaskModal } from "./components/task-modal/task-modal.js";
 import { createDeleteModal } from "./components/delete-modal/delete-modal.js";
 import { UI_ELEMENTS } from "./dom.js";
-import { toggleSidebar, closeSidebarOnMobile, renderBoardsNav, renderBoard } from "./ui.js";
+import {
+  toggleSidebar,
+  closeSidebarOnMobile,
+  renderBoardsNav,
+  renderBoard,
+} from "./ui.js";
 
 export function setupEventListeners() {
   UI_ELEMENTS.SIDEBAR_TOGGLE.addEventListener("click", toggleSidebar);
@@ -35,6 +40,20 @@ export function setupEventListeners() {
       priority: e.detail.priority,
       deadline: e.detail.deadline,
       createdAt: new Date().toISOString(),
+    });
+    await renderBoard();
+  });
+
+  document.addEventListener("edit-task", (e) => {
+    document._lastFocusedBeforeModal = document.activeElement;
+    createTaskModal(null, e.detail.task);
+  });
+
+  document.addEventListener("update-task", async (e) => {
+    await updateTask(state.currentBoardId, e.detail.taskId, {
+      title: e.detail.title,
+      priority: e.detail.priority,
+      deadline: e.detail.deadline,
     });
     await renderBoard();
   });

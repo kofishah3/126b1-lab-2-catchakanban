@@ -1,4 +1,6 @@
-export async function createTaskModal(columnId) {
+export async function createTaskModal(columnId, existingTask = null) {
+  const isEditMode = existingTask !== null;
+
   const overlay = document.createElement("div");
   overlay.className = "modal-overlay flex justify-center items-center";
   overlay.setAttribute("role", "dialog");
@@ -18,8 +20,37 @@ export async function createTaskModal(columnId) {
   overlay.appendChild(modal);
   document.body.appendChild(overlay);
 
+  if (isEditMode) {
+    modal.querySelector("#task-modal-title").textContent = "Edit Task";
+    modal.querySelector("#create-task").textContent = "Save";
+    modal
+      .querySelector("#create-task")
+      .setAttribute("aria-label", "Save task changes");
+  }
+
   setupDeadlineOptions();
   setupPriorityButtons();
+
+  if (isEditMode) {
+    modal.querySelector("#task-title").value = existingTask.title || "";
+
+    if (existingTask.deadline) {
+      const [year, month, day] = existingTask.deadline.split("-");
+      modal.querySelector("#deadline-year").value = year;
+      modal.querySelector("#deadline-month").value = month;
+      modal.querySelector("#deadline-day").value = day;
+    }
+
+    if (existingTask.priority) {
+      modal.querySelectorAll(".priority-buttons__button").forEach((btn) => {
+        const isMatch =
+          btn.dataset.priority.toLowerCase() ===
+          existingTask.priority.toLowerCase();
+        btn.classList.toggle("priority-buttons__button--active", isMatch);
+        btn.setAttribute("aria-pressed", String(isMatch));
+      });
+    }
+  }
 
   const titleInput = modal.querySelector("#task-title");
   requestAnimationFrame(() => titleInput.focus());
@@ -78,11 +109,19 @@ export async function createTaskModal(columnId) {
 
     const deadline = month && day && year ? `${year}-${month}-${day}` : null;
 
-    document.dispatchEvent(
-      new CustomEvent("create-task", {
-        detail: { title, priority, deadline, columnId },
-      }),
-    );
+    if (isEditMode) {
+      document.dispatchEvent(
+        new CustomEvent("update-task", {
+          detail: { taskId: existingTask.id, title, priority, deadline },
+        }),
+      );
+    } else {
+      document.dispatchEvent(
+        new CustomEvent("create-task", {
+          detail: { title, priority, deadline, columnId },
+        }),
+      );
+    }
 
     closeModal();
   });

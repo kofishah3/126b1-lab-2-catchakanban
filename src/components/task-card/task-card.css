@@ -23,6 +23,10 @@
 }
 
 .task-card__delete-button:hover {
+  color: var(--done-accent);
+}
+
+.task-card__edit-button:hover {
   color: #d63031;
 }
 
