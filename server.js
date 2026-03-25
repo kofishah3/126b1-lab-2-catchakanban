@@ -75,101 +75,127 @@ app.use("/auth", authRouter);
 
 
 // TASKS ROUTER------------
+// TASKS ROUTER------------
 const tasksRouter = express.Router();
 tasksRouter.use(authMiddleware);
-tasksRouter.use(taskLimiter); // RATE LIMITING - max 60 per 15 min per user email
+tasksRouter.use(taskLimiter);
 
+// ✅ GET all tasks for logged-in user (via boards)
 tasksRouter.get("/", async (req, res) => {
-    try {
-        const result = await pool.query(
-            `SELECT id, title, description, status, created_at
-            FROM tasks
-            WHERE user_id = $1 AND is_deleted = FALSE
-            ORDER BY created_at ASC`,
-            [req.user.id]
-        );
-        res.json({ success: true, tasks: result.rows});
-    } catch (err) {
-        console.error("GET /tasks error", err);
-        res.status(500).json({ success: false, message: "Server error"});
-    }
+  try {
+    const result = await pool.query(
+      `SELECT t.id, t.title, t.column_id, t.priority, t.deadline, t.created_at
+       FROM tasks t
+       JOIN boards b ON t.board_id = b.id
+       WHERE b.user_id = $1
+       ORDER BY t.created_at ASC`,
+      [req.user.id]
+    );
+
+    res.json({ success: true, tasks: result.rows });
+  } catch (err) {
+    console.error("GET /tasks error", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
 });
 
+// ✅ CREATE / UPDATE / DELETE
 tasksRouter.post("/", async (req, res) => {
-    const { action } = req.body;
+  const { action } = req.body;
 
-    if(!action)
-        return res.status(400).json({ success: false, message: "action is required (create | update | delete)" });
+  if (!action)
+    return res.status(400).json({ success: false, message: "action is required" });
 
-    try {
-        if (action === "create") {
-            const { title, description, status } = req.body;
-            if (!title)
-                return res.status(400).json({ success: false, message: "title is required" });
+  try {
+    // ================= CREATE =================
+    if (action === "create") {
+      const { id, title, board_id, column_id, priority, deadline } = req.body;
 
-            const result = await pool.query(
-                `INSERT INTO tasks (title, description, status, user_id)
-                VALUES ($1, $2, $3, $4)
-                RETURNING id, title, description, status, created_at`,
-                [title, description || null, status || "To Do", req.user.id]
-            );
-            return res.status(201).json({ success: true, task: result.rows[0] });
-        }
+      if (!title || !board_id)
+        return res.status(400).json({ success: false, message: "title and board_id are required" });
 
-        if (action === "update") {
-            const { id, title, description, status } = req.body;
-            if (!id)
-                return res.status(400).json({ success: false, message: "id is required for update"});
+      // 🔐 Check board ownership
+      const boardCheck = await pool.query(
+        "SELECT id FROM boards WHERE id = $1 AND user_id = $2",
+        [board_id, req.user.id]
+      );
 
-            const check = await pool.query(
-                "SELECT id FROM tasks WHERE id = $1 AND user_id = $2 AND is_deleted = FALSE",
-                [id, req.user.id]
-            );
-            if (check.rows.length === 0)
-                return res.status(404).json({ success: false, message: "Task not found" });
+      if (boardCheck.rows.length === 0)
+        return res.status(403).json({ success: false, message: "Unauthorized board" });
 
-            const result = await pool.query(
-                `UPDATE tasks
-                SET title = COALESCE($1, title),
-                    description = COALESCE($2, description),
-                    status = COALESCE($3, status)
-                WHERE id = $4 AND user_id = $5
-                RETURNING id, title, description, status, created_at`,
-                [title, description, status, id, req.user.id]
-            );
-            return res.json({ success: true, task: result.rows[0] });
-        }
+      const result = await pool.query(
+        `INSERT INTO tasks (id, board_id, title, column_id, priority, deadline)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING *`,
+        [id, board_id, title, column_id || "todo", priority || null, deadline || null]
+      );
 
-        if (action === "delete") {
-            const { id } = req.body;
-            if (!id)
-                return res.status(400).json({ success: false, message: "id is required for delete" });
-
-            const check = await pool.query(
-                "SELECT id FROM tasks WHERE id = $1 AND user_id = $2 AND is_deleted = FALSE",
-                [id, req.user.id]
-            );
-            if (check.rows.length === 0)
-                return res.status(404).json({ success: false, message: "Task not found" });
-
-            await pool.query(
-                "UPDATE tasks SET is_deleted = TRUE WHERE id = $1 AND user_id = $2",
-                [id, req.user.id]
-            );
-            return res.json({ success: true, message: "Task deleted" });
-        }
-
-        return res.status(400).json({ success: false, message: "Invalid action. Use: create | update | delete" });
-
-    } catch (err) {
-        console.error("POST /tasks error:", err);
-        res.status(500).json({ success: false, message: "Server error"});
+      return res.status(201).json({ success: true, task: result.rows[0] });
     }
+
+    // ================= UPDATE =================
+    if (action === "update") {
+      const { id, title, column_id, priority, deadline } = req.body;
+
+      if (!id)
+        return res.status(400).json({ success: false, message: "id is required" });
+
+      const check = await pool.query(
+        `SELECT t.id FROM tasks t
+         JOIN boards b ON t.board_id = b.id
+         WHERE t.id = $1 AND b.user_id = $2`,
+        [id, req.user.id]
+      );
+
+      if (check.rows.length === 0)
+        return res.status(404).json({ success: false, message: "Task not found" });
+
+      const result = await pool.query(
+        `UPDATE tasks
+         SET title = COALESCE($1, title),
+             column_id = COALESCE($2, column_id),
+             priority = COALESCE($3, priority),
+             deadline = COALESCE($4, deadline),
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $5
+         RETURNING *`,
+        [title, column_id, priority, deadline, id]
+      );
+
+      return res.json({ success: true, task: result.rows[0] });
+    }
+
+    // ================= DELETE =================
+    if (action === "delete") {
+      const { id } = req.body;
+
+      if (!id)
+        return res.status(400).json({ success: false, message: "id is required" });
+
+      const check = await pool.query(
+        `SELECT t.id FROM tasks t
+         JOIN boards b ON t.board_id = b.id
+         WHERE t.id = $1 AND b.user_id = $2`,
+        [id, req.user.id]
+      );
+
+      if (check.rows.length === 0)
+        return res.status(404).json({ success: false, message: "Task not found" });
+
+      await pool.query("DELETE FROM tasks WHERE id = $1", [id]);
+
+      return res.json({ success: true, message: "Task deleted" });
+    }
+
+    return res.status(400).json({ success: false, message: "Invalid action" });
+
+  } catch (err) {
+    console.error("POST /tasks error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
 });
 
 app.use("/tasks", tasksRouter);
-
-
 
 app.get("/dashboard", authMiddleware, (req, res) => {
     res.json({ message: "Welcome to dashboard", user: req.user });
@@ -179,27 +205,3 @@ app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
 });
 
-
-
-cron.schedule("0 0 * * *", async () => {
-    console.log("CRON JOB: Cleaning soft-deleted tasks");
-    try {
-        await pool.query("DELETE FROM tasks WHERE is_deleted = TRUE");
-    } catch (err) {
-        console.error("CRON JOB ERROR:", err);
-    }
-});
-
-cron.schedule("0 0 * * *", async () => {
-    console.log("CRON JOB: Archiving old tasks");
-    try {
-        await pool.query(
-            `UPDATE tasks SET status = 'Archived'
-            WHERE status = 'Done'
-            AND created_at < NOW() - INTERVAL '30 days'
-            AND is_deleted = FALSE`
-        );
-    } catch (err) {
-        console.error("CRON JOB ERROR:", err);
-    }
-});

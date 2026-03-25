@@ -49,7 +49,7 @@ async function submitLogin() {
   btn.innerHTML = '<span class="spinner"></span> Logging in…';
 
   try {
-    const res = await fetch(`${API}/login`, {
+    const res = await fetch(`${API}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
@@ -57,12 +57,12 @@ async function submitLogin() {
 
     const data = await res.json();
 
-    if (data.success) {
-      localStorage.setItem("token", data.token);
-      location.href = "/index.html";
-    } else {
-      setAlert("login-alert", data.message || "Invalid email or password.");
-    }
+      if (data.success) {
+        localStorage.setItem("token", data.token);
+        location.href = "/index.html";
+      } else {
+        setAlert("login-alert", data.message || "Invalid email or password.");
+      }
   } catch (err) {
     console.error(err);
     setAlert("login-alert", "Could not connect to server.");
