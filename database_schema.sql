@@ -42,6 +42,8 @@ CREATE TABLE IF NOT EXISTS tasks (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
+    is_deleted BOOLEAN DEFAULT FALSE,
+
     CONSTRAINT fk_board
         FOREIGN KEY(board_id)
         REFERENCES boards(id)
