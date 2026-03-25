@@ -132,7 +132,15 @@ async function handleCreateTask(req, res) {
       .json({ success: false, message: "Unauthorized board" });
 
   const result = await pool.query(
-    `INSERT INTO tasks (id, board_id, title, column_id, priority, deadline) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+    `INSERT INTO tasks (id, board_id, title, column_id, priority, deadline)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (id) DO UPDATE SET
+       title = EXCLUDED.title,
+       column_id = EXCLUDED.column_id,
+       priority = EXCLUDED.priority,
+       deadline = EXCLUDED.deadline,
+       updated_at = CURRENT_TIMESTAMP
+     RETURNING *`,
     [
       id,
       board_id,
@@ -228,7 +236,12 @@ async function handleCreateBoard(req, res) {
       .json({ success: false, message: "id and name are required" });
 
   const result = await pool.query(
-    `INSERT INTO boards (id, name, user_id) VALUES ($1, $2, $3) RETURNING *`,
+    `INSERT INTO boards (id, name, user_id)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (id) DO UPDATE SET
+       name = EXCLUDED.name,
+       updated_at = CURRENT_TIMESTAMP
+     RETURNING *`,
     [id, name, req.user.id],
   );
   return res.status(201).json({ success: true, board: result.rows[0] });
