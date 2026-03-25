@@ -75,7 +75,7 @@ export function renderBoardsNav() {
           title: "Delete Board",
           message: `Delete board "${board.name}"? This will also delete all its tasks.`,
           onConfirm: async () => {
-            deleteBoard(board.id);
+            await deleteBoard(board.id);
             state.boards = state.boards.filter((b) => b.id !== board.id);
 
             if (state.currentBoardId === board.id) {
@@ -116,7 +116,7 @@ export async function renderBoard() {
 
   const boardContainer = createElement("div", "kanban-board");
 
-  const boardTasks = getTasks(state.currentBoardId);
+  const boardTasks = await getTasks(state.currentBoardId);
 
   const columnPromises = COLUMNS.map((column) => {
     const columnTasks = boardTasks.filter((task) => task.columnId === column.id);
