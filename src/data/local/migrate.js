@@ -26,16 +26,10 @@ function getCurrentUserId() {
   }
 }
 
-/**
- * Runs all pending migrations in order. Safe to call on every startup.
- * - runOnce migrations (default) are skipped after their first successful run.
- * - Recurring migrations (runOnce: false) execute every startup.
- */
 export async function runMigrations() {
   for (const migration of MIGRATIONS) {
     const once = migration.runOnce !== false;
 
-    // Backward-compat: treat the old one-off flag as migration 001 being done.
     if (
       migration.id === "001-localStorage-to-indexeddb" &&
       localStorage.getItem("indexeddb-migration-complete")
@@ -134,7 +128,7 @@ async function hydrateUserIds() {
   const db = await getDb();
 
   const boards = await db.getAll("boards");
-  const orphanBoards = boards.filter(b => !b.userId);
+  const orphanBoards = boards.filter((b) => !b.userId);
   if (orphanBoards.length > 0) {
     const tx = db.transaction("boards", "readwrite");
     for (const board of orphanBoards) {
@@ -144,7 +138,7 @@ async function hydrateUserIds() {
   }
 
   const tasks = await db.getAll("tasks");
-  const orphanTasks = tasks.filter(t => !t.userId);
+  const orphanTasks = tasks.filter((t) => !t.userId);
   if (orphanTasks.length > 0) {
     const tx = db.transaction("tasks", "readwrite");
     for (const task of orphanTasks) {
