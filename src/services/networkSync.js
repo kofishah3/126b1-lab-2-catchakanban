@@ -21,6 +21,34 @@ function getUserId() {
   }
 }
 
+/**
+ * Called once before rendering. If online, pushes pending changes
+ * and pulls server state into IndexedDB so initializeState() reads
+ * fresh data. If offline, resolves immediately (IndexedDB as-is).
+ */
+export async function initialSync() {
+  if (!localStorage.getItem("token")) return;
+  if (!navigator.onLine) {
+    console.log("[sync] Offline at startup, using local data.");
+    return;
+  }
+
+  console.log("[sync] Online at startup, syncing before render...");
+  isSyncing = true;
+  try {
+    await pushChanges();
+    await pullFromServer({ skipRefresh: true });
+  } catch (err) {
+    console.warn("[sync] Initial sync failed, falling back to local data:", err.message);
+  } finally {
+    isSyncing = false;
+  }
+}
+
+/**
+ * Called after rendering. Registers online/offline listeners
+ * and starts the periodic background sync interval.
+ */
 export function startSync() {
   if (!localStorage.getItem("token")) return;
 
@@ -28,7 +56,6 @@ export function startSync() {
   window.addEventListener("offline", onOffline);
 
   if (navigator.onLine) {
-    sync();
     syncIntervalId = setInterval(sync, SYNC_INTERVAL_MS);
   }
 }
@@ -117,7 +144,7 @@ async function pushTaskChange(entry) {
   }
 }
 
-async function pullFromServer() {
+async function pullFromServer({ skipRefresh = false } = {}) {
   const userId = getUserId();
   if (!userId) return;
 
@@ -134,7 +161,9 @@ async function pullFromServer() {
 
   state.boards = await getBoards();
 
-  document.dispatchEvent(new CustomEvent("refresh-board"));
+  if (!skipRefresh) {
+    document.dispatchEvent(new CustomEvent("refresh-board"));
+  }
   console.log("[sync] Pull complete.");
 }
 

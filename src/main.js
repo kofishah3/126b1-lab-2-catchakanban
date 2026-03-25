@@ -3,11 +3,12 @@ import { setupEventListeners } from "./events.js";
 import { setupKeyboardShortcuts } from "./keyboard.js";
 import { migrateFromLocalStorage } from "./data/local/migrate.js";
 import { initializeState } from "./state.js";
-import { startSync } from "./services/networkSync.js";
+import { initialSync, startSync } from "./services/networkSync.js";
 
 async function initializeApp() {
   try {
     await migrateFromLocalStorage();
+    await initialSync();
     await initializeState();
 
     renderBoardsNav();
