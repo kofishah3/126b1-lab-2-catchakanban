@@ -21,34 +21,21 @@ function getUserId() {
   }
 }
 
-/**
- * Called once before rendering. If online, pushes pending changes
- * and pulls server state into IndexedDB so initializeState() reads
- * fresh data. If offline, resolves immediately (IndexedDB as-is).
- */
 export async function initialSync() {
   if (!localStorage.getItem("token")) return;
-  if (!navigator.onLine) {
-    console.log("[sync] Offline at startup, using local data.");
-    return;
-  }
+  if (!navigator.onLine) return;
 
-  console.log("[sync] Online at startup, syncing before render...");
   isSyncing = true;
   try {
     await pushChanges();
     await pullFromServer({ skipRefresh: true });
-  } catch (err) {
-    console.warn("[sync] Initial sync failed, falling back to local data:", err.message);
+  } catch {
+    // Fall back to local data silently
   } finally {
     isSyncing = false;
   }
 }
 
-/**
- * Called after rendering. Registers online/offline listeners
- * and starts the periodic background sync interval.
- */
 export function startSync() {
   if (!localStorage.getItem("token")) return;
 
@@ -61,7 +48,6 @@ export function startSync() {
 }
 
 function onOnline() {
-  console.log("[sync] Back online, syncing...");
   sync();
   if (!syncIntervalId) {
     syncIntervalId = setInterval(sync, SYNC_INTERVAL_MS);
@@ -69,7 +55,6 @@ function onOnline() {
 }
 
 function onOffline() {
-  console.log("[sync] Offline, pausing sync.");
   if (syncIntervalId) {
     clearInterval(syncIntervalId);
     syncIntervalId = null;
@@ -85,8 +70,8 @@ async function sync() {
   try {
     await pushChanges();
     await pullFromServer();
-  } catch (err) {
-    console.error("[sync] Sync failed:", err.message);
+  } catch {
+    // Retry on next cycle
   } finally {
     isSyncing = false;
   }
@@ -96,8 +81,6 @@ async function pushChanges() {
   const manifest = await getManifest();
   if (manifest.length === 0) return;
 
-  console.log(`[sync] Pushing ${manifest.length} pending change(s)...`);
-
   for (const entry of manifest) {
     try {
       if (entry.entityType === "board") {
@@ -105,8 +88,8 @@ async function pushChanges() {
       } else if (entry.entityType === "task") {
         await pushTaskChange(entry);
       }
-    } catch (err) {
-      console.warn(`[sync] Failed to push ${entry.key}:`, err.message);
+    } catch {
+      // Skip failed entry, retry on next cycle
     }
   }
 }
@@ -164,7 +147,6 @@ async function pullFromServer({ skipRefresh = false } = {}) {
   if (!skipRefresh) {
     document.dispatchEvent(new CustomEvent("refresh-board"));
   }
-  console.log("[sync] Pull complete.");
 }
 
 async function mergeBoards(serverBoards, pendingKeys, userId) {
