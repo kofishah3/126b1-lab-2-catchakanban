@@ -64,9 +64,9 @@ authRouter.post("/login", authLimiter, async (req, res) => {
       .json({ success: false, message: "Email and password are required" });
 
   try {
-    const result = await pool.query("SELECT * FROM users WHERE email = $1", [
-      email,
-    ]);
+    const result = await pool.query("SELECT * FROM users WHERE email = $1",
+      [email],
+    );
     const user = result.rows[0];
     if (!user)
       return res
