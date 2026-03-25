@@ -1,13 +1,13 @@
 import { renderBoardsNav, renderBoard } from "./ui.js";
 import { setupEventListeners } from "./events.js";
 import { setupKeyboardShortcuts } from "./keyboard.js";
-import { migrateFromLocalStorage } from "./data/local/migrate.js";
+import { runMigrations } from "./data/local/migrate.js";
 import { initializeState } from "./state.js";
 import { initialSync, startSync } from "./services/networkSync.js";
 
 async function initializeApp() {
   try {
-    await migrateFromLocalStorage();
+    await runMigrations();
     await initialSync();
     await initializeState();
 
