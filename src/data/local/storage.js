@@ -14,8 +14,6 @@
 
 import { getDb } from "./database.js";
 
-// ===== UTILITIES =====
-
 /**
  * @returns {string}
  */
@@ -25,8 +23,6 @@ export function generateTaskId() {
   }
   return `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
-
-// ===== DATA LAYER (CRUD) =====
 
 /**
  * @param {string} boardId
