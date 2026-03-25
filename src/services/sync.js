@@ -157,7 +157,7 @@ export async function addBoard(name) {
   const now = new Date().toISOString();
 
   const newBoard = {
-    id: `board-${Date.now()}`,
+    id: crypto.randomUUID ? `board-${crypto.randomUUID()}` : `board-${Date.now()}`,
     name,
     createdAt: now,
     updatedAt: now,

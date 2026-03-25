@@ -18,7 +18,13 @@ export async function migrateFromLocalStorage() {
     return;
   }
 
-  const boards = JSON.parse(boardsRaw);
+  let boards;
+  try {
+    boards = JSON.parse(boardsRaw);
+  } catch (e) {
+    throw new Error("Migration failed: corrupted boards data in localStorage");
+  }
+
   if (!Array.isArray(boards) || boards.length === 0) {
     localStorage.setItem(MIGRATION_FLAG, "true");
     return;
@@ -45,7 +51,12 @@ export async function migrateFromLocalStorage() {
 
     const tasksRaw = localStorage.getItem(`tasks-${board.id}`);
     if (tasksRaw) {
-      const tasks = JSON.parse(tasksRaw);
+      let tasks;
+      try {
+        tasks = JSON.parse(tasksRaw);
+      } catch (e) {
+        throw new Error(`Migration failed: corrupted task data for board ${board.id}`);
+      }
       if (Array.isArray(tasks)) {
         for (const task of tasks) {
           tx.objectStore("tasks").put({
