@@ -200,6 +200,95 @@ tasksRouter.post("/", async (req, res) => {
 
 app.use("/tasks", tasksRouter);
 
+const boardsRouter = express.Router();
+boardsRouter.use(authMiddleware);
+boardsRouter.use(taskLimiter);
+
+boardsRouter.get("/", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, name, user_id, created_at, updated_at
+       FROM boards
+       WHERE user_id = $1
+       ORDER BY created_at ASC`,
+      [req.user.id],
+    );
+    res.json({ success: true, boards: result.rows });
+  } catch (err) {
+    console.error("GET /boards error", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+async function handleCreateBoard(req, res) {
+  const { id, name } = req.body;
+  if (!id || !name)
+    return res
+      .status(400)
+      .json({ success: false, message: "id and name are required" });
+
+  const result = await pool.query(
+    `INSERT INTO boards (id, name, user_id) VALUES ($1, $2, $3) RETURNING *`,
+    [id, name, req.user.id],
+  );
+  return res.status(201).json({ success: true, board: result.rows[0] });
+}
+
+async function handleUpdateBoard(req, res) {
+  const { id, name } = req.body;
+  if (!id)
+    return res.status(400).json({ success: false, message: "id is required" });
+
+  const check = await pool.query(
+    "SELECT id FROM boards WHERE id = $1 AND user_id = $2",
+    [id, req.user.id],
+  );
+  if (check.rows.length === 0)
+    return res.status(404).json({ success: false, message: "Board not found" });
+
+  const result = await pool.query(
+    `UPDATE boards SET name = COALESCE($1, name), updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND user_id = $3 RETURNING *`,
+    [name, id, req.user.id],
+  );
+  return res.json({ success: true, board: result.rows[0] });
+}
+
+async function handleDeleteBoard(req, res) {
+  const { id } = req.body;
+  if (!id)
+    return res.status(400).json({ success: false, message: "id is required" });
+
+  const check = await pool.query(
+    "SELECT id FROM boards WHERE id = $1 AND user_id = $2",
+    [id, req.user.id],
+  );
+  if (check.rows.length === 0)
+    return res.status(404).json({ success: false, message: "Board not found" });
+
+  await pool.query("DELETE FROM boards WHERE id = $1", [id]);
+  return res.json({ success: true, message: "Board deleted" });
+}
+
+boardsRouter.post("/", async (req, res) => {
+  const { action } = req.body;
+  if (!action)
+    return res
+      .status(400)
+      .json({ success: false, message: "action is required" });
+
+  try {
+    if (action === "create") return await handleCreateBoard(req, res);
+    if (action === "update") return await handleUpdateBoard(req, res);
+    if (action === "delete") return await handleDeleteBoard(req, res);
+    return res.status(400).json({ success: false, message: "invalid action" });
+  } catch (err) {
+    console.error("POST /boards error:", err);
+    res.status(500).json({ success: false, message: "server error" });
+  }
+});
+
+app.use("/boards", boardsRouter);
+
 app.get("/dashboard", authMiddleware, (req, res) => {
   res.json({ message: "Welcome to dashboard", user: req.user });
 });
