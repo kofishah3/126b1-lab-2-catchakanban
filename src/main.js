@@ -5,7 +5,63 @@ import { runMigrations } from "./data/local/migrate.js";
 import { initializeState } from "./state.js";
 import { initialSync, startSync } from "./services/networkSync.js";
 
+function requireAuth() {
+  const token = localStorage.getItem("token");
+  if (!token) {
+    window.location.href = "/src/authentication/login.html";
+    return false;
+  }
+  return true;
+}
+
+function getUserProfile() {
+  const token = localStorage.getItem("token");
+  if (!token) return null;
+
+  try {
+    return JSON.parse(atob(token.split(".")[1]));
+  } catch {
+    return null;
+  }
+}
+
+function displayUserProfile() {
+  const $userName = document.getElementById("user-name");
+  const $userEmail = document.getElementById("user-email");
+  const profile = getUserProfile();
+
+  if ($userName) {
+    if (profile && profile.firstName && profile.lastName) {
+      $userName.textContent = `${profile.firstName} ${profile.lastName}`;
+    } else {
+      $userName.textContent = "Unknown User";
+    }
+  }
+
+  if ($userEmail) {
+    $userEmail.textContent = profile?.email || "Unknown";
+  }
+}
+
+async function handleLogout() {
+  localStorage.clear();
+  try {
+    const { getDb } = await import("./data/local/database.js");
+    const db = await getDb();
+    const tx = db.transaction(["boards", "tasks", "manifest"], "readwrite");
+    await tx.objectStore("boards").clear();
+    await tx.objectStore("tasks").clear();
+    await tx.objectStore("manifest").clear();
+    await tx.done;
+  } catch (e) {
+    console.error("Cleanup error on logout:", e);
+  }
+  window.location.href = "/src/authentication/login.html";
+}
+
 async function initializeApp() {
+  if (!requireAuth()) return;
+
   try {
     await runMigrations();
     await initialSync();
@@ -26,6 +82,10 @@ async function initializeApp() {
 
     setupEventListeners();
     setupKeyboardShortcuts();
+    displayUserProfile();
+
+    const $logoutBtn = document.getElementById("logout-button");
+    if ($logoutBtn) $logoutBtn.addEventListener("click", handleLogout);
   } catch (error) {
     document.body.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:system-ui,sans-serif;background:#1e1e2e;color:#cdd6f4;">

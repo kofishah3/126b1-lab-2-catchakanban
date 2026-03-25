@@ -12,21 +12,15 @@ function setAlert(id, message) {
 
 document.addEventListener("DOMContentLoaded", () => {
   const $loginBtn = document.getElementById("login-btn");
-  const $backBtn = document.getElementById("back-btn");
   const $signupLinkBtn = document.getElementById("signup-link-btn");
 
   if ($loginBtn) $loginBtn.addEventListener("click", handleLoginSubmit);
-  if ($backBtn) $backBtn.addEventListener("click", handleBackClick);
   if ($signupLinkBtn) $signupLinkBtn.addEventListener("click", handleSignupLinkClick);
 
   document.addEventListener("keydown", (e) => {
     if (e.key === "Enter") handleLoginSubmit();
   });
 });
-
-function handleBackClick() {
-  location.href = "/index.html";
-}
 
 function handleSignupLinkClick() {
   location.href = "signup.html";

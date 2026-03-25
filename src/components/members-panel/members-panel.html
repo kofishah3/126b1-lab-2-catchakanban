@@ -1,0 +1,25 @@
+<div class="members-panel bg-white p-lg rounded-lg flex flex-col gap-sm">
+  <div class="flex justify-between items-center">
+    <h2 class="members-panel__title" id="MEMBERS_TITLE">Board Members</h2>
+    <button
+      id="CLOSE_MEMBERS_BTN"
+      class="members-panel__close focus-none focus-ring"
+    >
+      X
+    </button>
+  </div>
+
+  <div class="members-panel__form">
+    <input
+      type="email"
+      id="INVITE_EMAIL_INPUT"
+      list="ALL_EMAILS_LIST"
+      class="members-panel__input"
+      placeholder="User email to invite"
+    />
+    <datalist id="ALL_EMAILS_LIST"></datalist>
+    <button id="INVITE_SUBMIT_BTN" class="members-panel__submit">Invite</button>
+  </div>
+
+  <div class="members-panel__list" id="MEMBERS_LIST"></div>
+</div>
