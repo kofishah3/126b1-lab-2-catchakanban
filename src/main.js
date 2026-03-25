@@ -42,8 +42,19 @@ function displayUserProfile() {
   }
 }
 
-function handleLogout() {
-  localStorage.removeItem("token");
+async function handleLogout() {
+  localStorage.clear();
+  try {
+    const { getDb } = await import("./data/local/database.js");
+    const db = await getDb();
+    const tx = db.transaction(["boards", "tasks", "manifest"], "readwrite");
+    await tx.objectStore("boards").clear();
+    await tx.objectStore("tasks").clear();
+    await tx.objectStore("manifest").clear();
+    await tx.done;
+  } catch (e) {
+    console.error("Cleanup error on logout:", e);
+  }
   window.location.href = "/src/authentication/login.html";
 }
 

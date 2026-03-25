@@ -1,5 +1,5 @@
 import { state, COLUMNS } from "./state.js";
-import { getTasks, deleteBoard } from "./services/sync.js";
+import { getTasks, deleteBoard, connectSocket } from "./services/sync.js";
 import { KanbanColumn } from "./components/kanban-column/kanban-column.js";
 import { createDeleteModal } from "./components/delete-modal/delete-modal.js";
 import { createElement } from "../utils/dom-utils.js";
@@ -131,6 +131,10 @@ export async function renderBoard() {
   }
 
   UI_ELEMENTS.APP.innerHTML = "";
+  
+  if (state.currentBoardId) {
+    connectSocket(state.currentBoardId);
+  }
 
   const boardContainer = createElement("div", "kanban-board");
 

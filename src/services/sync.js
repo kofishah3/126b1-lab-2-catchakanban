@@ -11,6 +11,7 @@ import {
   removeBoard,
 } from "../data/local/storage.js";
 import { recordChange } from "../data/local/manifest.js";
+import { showToast } from "../components/toast/toast.js";
 
 function getUserId() {
   const token = localStorage.getItem("token");
@@ -24,8 +25,95 @@ function getUserId() {
   }
 }
 
+let socket;
+
+export function connectSocket(boardId) {
+  const token = localStorage.getItem("token");
+  if (!token || !window.io) return;
+
+  if (!socket) {
+    socket = window.io("http://localhost:3000", { auth: { token } });
+    setupSocketListeners();
+  }
+  if (boardId) {
+    socket.emit("joinBoard", boardId);
+  }
+}
+
+async function setupSocketListeners() {
+  socket.on("boardInvited", async () => {
+    showToast("You were invited to a new board!", "info");
+    await getBoards();
+    document.dispatchEvent(new CustomEvent("refresh-boards-nav"));
+  });
+
+  socket.on("boardDeleted", async (data) => {
+    const db = await getDb();
+    const tx = db.transaction(["boards"], "readwrite");
+    await removeBoard(data.boardId, tx);
+    await tx.done;
+
+    showToast("The owner deleted this board", "error");
+    document.dispatchEvent(new CustomEvent("refresh-boards-nav"));
+  });
+
+  socket.on("taskCreated", async (data) => {
+    const db = await getDb();
+    await putTask(data.task);
+    document.dispatchEvent(new CustomEvent("refresh-board"));
+    showToast(`${data.sender} added a task: ${data.task.title}`, "info");
+  });
+
+  socket.on("taskUpdated", async (data) => {
+    const db = await getDb();
+    await putTask(data.task);
+    document.dispatchEvent(new CustomEvent("refresh-board"));
+    showToast(`${data.sender} updated task: ${data.task.title}`, "info");
+  });
+
+  socket.on("taskDeleted", async (data) => {
+    const db = await getDb();
+    await removeTask(data.taskId);
+    document.dispatchEvent(new CustomEvent("refresh-board"));
+    showToast(`${data.sender} deleted a task`, "info");
+  });
+}
+
 export async function getTasks(boardId) {
   return await loadTasks(boardId);
+}
+
+async function pullTasksFromServer() {
+  const token = localStorage.getItem("token");
+  if (!token) return;
+  try {
+    const res = await fetch("http://localhost:3000/tasks", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (data.success) await saveServerTasksLocally(data.tasks);
+  } catch (err) {
+    console.error("Failed to pull tasks", err);
+  }
+}
+
+async function saveServerTasksLocally(serverTasks) {
+  const db = await getDb();
+  const tx = db.transaction(["tasks"], "readwrite");
+  for (const t of serverTasks) {
+    tx.objectStore("tasks").put({
+      id: t.id,
+      boardId: t.board_id,
+      userId: getUserId(),
+      title: t.title,
+      columnId: t.column_id,
+      priority: t.priority,
+      deadline: t.deadline,
+      createdAt: t.created_at,
+      updatedAt: t.updated_at || t.created_at,
+    });
+  }
+  await tx.done;
 }
 
 export async function getTasksByColumn(boardId, columnId) {
@@ -59,6 +147,21 @@ export async function addTask(boardId, taskData) {
   await recordChange("task", newTask.id, "created", tx);
 
   await tx.done;
+
+  if (socket) {
+    socket.emit("taskCreated", { boardId, task: newTask });
+  }
+
+  syncTaskWithServer("create", {
+    id: newTask.id,
+    board_id: boardId,
+    title: newTask.title,
+    column_id: newTask.columnId,
+    priority: newTask.priority,
+    deadline: newTask.deadline,
+  });
+
+  showToast(`Added a task: ${newTask.title}`, "success");
   return newTask;
 }
 
@@ -82,6 +185,19 @@ export async function updateTask(boardId, taskId, updates) {
   await recordChange("task", taskId, "modified", tx);
 
   await tx.done;
+
+  if (socket) {
+    socket.emit("taskUpdated", { boardId, task: updatedTask });
+  }
+
+  syncTaskWithServer("update", {
+    id: updatedTask.id,
+    title: updatedTask.title,
+    column_id: updatedTask.columnId,
+    priority: updatedTask.priority,
+    deadline: updatedTask.deadline,
+  });
+
   return updatedTask;
 }
 
@@ -99,6 +215,28 @@ export async function deleteTask(boardId, taskId) {
   await recordChange("task", taskId, "deleted", tx);
 
   await tx.done;
+
+  if (socket) {
+    socket.emit("taskDeleted", { boardId, taskId });
+  }
+
+  syncTaskWithServer("delete", { id: taskId });
+
+  showToast(`Deleted task`, "success");
+}
+
+function syncTaskWithServer(action, payload) {
+  const token = localStorage.getItem("token");
+  if (!token) return;
+
+  fetch("http://localhost:3000/tasks", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ action, ...payload }),
+  }).catch(() => {});
 }
 
 export async function moveTask(boardId, taskId, newColumnId) {
@@ -124,6 +262,7 @@ export async function clearAllBoardTasks(boardId) {
 
 export async function getBoards() {
   await pullBoardsFromServer();
+  await pullTasksFromServer();
   await pushLocalBoardsToServer();
 
   const userId = getUserId();

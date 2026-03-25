@@ -165,4 +165,13 @@ export function setupEventListeners() {
       await renderBoard();
     }),
   );
+
+  document.addEventListener(
+    "refresh-boards-nav",
+    withAsyncErrorBoundary(async () => {
+      const { initializeState } = await import("./state.js");
+      await initializeState();
+      renderBoardsNav();
+    }),
+  );
 }
