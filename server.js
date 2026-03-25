@@ -79,9 +79,16 @@ authRouter.post("/login", authLimiter, async (req, res) => {
         .status(401)
         .json({ success: false, message: "Invalid email or password" });
 
-    const token = jwt.sign({ id: user.id, email: user.email }, SECRET, {
-      expiresIn: "1h",
-    });
+    const token = jwt.sign(
+      { 
+        id: user.id, 
+        email: user.email,
+        firstName: user.first_name,
+        lastName: user.last_name
+      }, 
+      SECRET, 
+      { expiresIn: "1h" }
+    );
     res.json({ success: true, token });
   } catch (err) {
     console.error("Login error", err);
@@ -103,7 +110,8 @@ tasksRouter.get("/", async (req, res) => {
       `SELECT t.id, t.title, t.column_id, t.priority, t.deadline, t.created_at
        FROM tasks t
        JOIN boards b ON t.board_id = b.id
-       WHERE b.user_id = $1
+       LEFT JOIN board_members bm ON b.id = bm.board_id
+       WHERE b.user_id = $1 OR bm.user_id = $1
        ORDER BY t.created_at ASC`,
       [req.user.id],
     );
@@ -115,6 +123,16 @@ tasksRouter.get("/", async (req, res) => {
   }
 });
 
+async function checkBoardAccess(boardId, userId) {
+  const check = await pool.query(
+    `SELECT id FROM boards WHERE id = $1 AND user_id = $2
+     UNION
+     SELECT board_id FROM board_members WHERE board_id = $1 AND user_id = $2`,
+    [boardId, userId]
+  );
+  return check.rows.length > 0;
+}
+
 async function handleCreateTask(req, res) {
   const { id, title, board_id, column_id, priority, deadline } = req.body;
   if (!title || !board_id)
@@ -122,11 +140,8 @@ async function handleCreateTask(req, res) {
       .status(400)
       .json({ success: false, message: "title and board_id are required" });
 
-  const boardCheck = await pool.query(
-    "SELECT id FROM boards WHERE id = $1 AND user_id = $2",
-    [board_id, req.user.id],
-  );
-  if (boardCheck.rows.length === 0)
+  const hasAccess = await checkBoardAccess(board_id, req.user.id);
+  if (!hasAccess)
     return res
       .status(403)
       .json({ success: false, message: "Unauthorized board" });
@@ -150,12 +165,11 @@ async function handleUpdateTask(req, res) {
   if (!id)
     return res.status(400).json({ success: false, message: "id is required" });
 
-  const check = await pool.query(
-    `SELECT t.id FROM tasks t JOIN boards b ON t.board_id = b.id WHERE t.id = $1 AND b.user_id = $2`,
-    [id, req.user.id],
-  );
-  if (check.rows.length === 0)
-    return res.status(404).json({ success: false, message: "Task not found" });
+  const taskRes = await pool.query("SELECT board_id FROM tasks WHERE id = $1", [id]);
+  if (taskRes.rows.length === 0) return res.status(404).json({ success: false, message: "Task not found" });
+  
+  const hasAccess = await checkBoardAccess(taskRes.rows[0].board_id, req.user.id);
+  if (!hasAccess) return res.status(403).json({ success: false, message: "Unauthorized" });
 
   const result = await pool.query(
     `UPDATE tasks SET title = COALESCE($1, title), column_id = COALESCE($2, column_id), priority = COALESCE($3, priority), deadline = COALESCE($4, deadline), updated_at = CURRENT_TIMESTAMP WHERE id = $5 RETURNING *`,
@@ -169,12 +183,11 @@ async function handleDeleteTask(req, res) {
   if (!id)
     return res.status(400).json({ success: false, message: "id is required" });
 
-  const check = await pool.query(
-    `SELECT t.id FROM tasks t JOIN boards b ON t.board_id = b.id WHERE t.id = $1 AND b.user_id = $2`,
-    [id, req.user.id],
-  );
-  if (check.rows.length === 0)
-    return res.status(404).json({ success: false, message: "Task not found" });
+  const taskRes = await pool.query("SELECT board_id FROM tasks WHERE id = $1", [id]);
+  if (taskRes.rows.length === 0) return res.status(404).json({ success: false, message: "Task not found" });
+
+  const hasAccess = await checkBoardAccess(taskRes.rows[0].board_id, req.user.id);
+  if (!hasAccess) return res.status(403).json({ success: false, message: "Unauthorized" });
 
   await pool.query("DELETE FROM tasks WHERE id = $1", [id]);
   return res.json({ success: true, message: "Task deleted" });
@@ -198,7 +211,96 @@ tasksRouter.post("/", async (req, res) => {
   }
 });
 
+app.get("/boards", authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT b.* FROM boards b 
+       LEFT JOIN board_members bm ON b.id = bm.board_id 
+       WHERE b.user_id = $1 OR bm.user_id = $1`,
+      [req.user.id]
+    );
+    res.json({ success: true, boards: result.rows });
+  } catch (err) {
+    console.error("GET /boards error", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+app.post("/boards", authMiddleware, async (req, res) => {
+  const { id, name } = req.body;
+  if (!id || !name) return res.status(400).json({ success: false, message: "id and name are required" });
+
+  try {
+    await pool.query(
+      "INSERT INTO boards (id, name, user_id) VALUES ($1, $2, $3) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, updated_at = CURRENT_TIMESTAMP",
+      [id, name, req.user.id]
+    );
+    res.json({ success: true, message: "Board saved" });
+  } catch (err) {
+    console.error("POST /boards error", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+app.delete("/boards/:id", authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query("DELETE FROM boards WHERE id = $1 AND user_id = $2", [id, req.user.id]);
+    if (result.rowCount === 0) return res.status(403).json({ success: false, message: "Unauthorized or not found" });
+    res.json({ success: true, message: "Board deleted" });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
 app.use("/tasks", tasksRouter);
+
+app.get("/users", authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query("SELECT id, email, first_name, last_name FROM users");
+    res.json({ success: true, users: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+app.get("/boards/:boardId/members", authMiddleware, async (req, res) => {
+  try {
+    const { boardId } = req.params;
+    const result = await pool.query(
+      `SELECT u.id, u.email, u.first_name, u.last_name, false as is_owner
+       FROM users u 
+       JOIN board_members bm ON u.id = bm.user_id 
+       WHERE bm.board_id = $1
+       UNION
+       SELECT u.id, u.email, u.first_name, u.last_name, true as is_owner
+       FROM users u 
+       JOIN boards b ON u.id = b.user_id 
+       WHERE b.id = $1`,
+      [boardId]
+    );
+    res.json({ success: true, members: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+app.post("/boards/:boardId/members", authMiddleware, async (req, res) => {
+  const { email } = req.body;
+  const { boardId } = req.params;
+  try {
+    const user = await pool.query("SELECT id FROM users WHERE email = $1", [email]);
+    if (user.rows.length === 0) return res.status(404).json({ success: false, message: "User not found" });
+
+    const hasAccess = await checkBoardAccess(boardId, req.user.id);
+    if (!hasAccess) return res.status(403).json({ success: false, message: "Unauthorized" });
+
+    await pool.query("INSERT INTO board_members (board_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", [boardId, user.rows[0].id]);
+    res.json({ success: true, message: "Member added" });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
 
 app.get("/dashboard", authMiddleware, (req, res) => {
   res.json({ message: "Welcome to dashboard", user: req.user });

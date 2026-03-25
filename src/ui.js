@@ -83,15 +83,21 @@ export function renderBoardsNav() {
           title: "Delete Board",
           message: `Delete board "${board.name}"? This will also delete all its tasks.`,
           onConfirm: async () => {
-            await deleteBoard(board.id);
-            state.boards = state.boards.filter((b) => b.id !== board.id);
+            try {
+              await deleteBoard(board.id);
+              state.boards = state.boards.filter((b) => b.id !== board.id);
 
-            if (state.currentBoardId === board.id) {
-              state.currentBoardId = state.boards[0].id;
+              if (state.currentBoardId === board.id) {
+                state.currentBoardId = state.boards[0].id;
+              }
+
+              renderBoardsNav();
+              await renderBoard();
+            } catch (err) {
+              import("./components/toast/toast.js").then((m) => {
+                m.showToast(err.message, "error");
+              });
             }
-
-            renderBoardsNav();
-            await renderBoard();
           },
         });
       });

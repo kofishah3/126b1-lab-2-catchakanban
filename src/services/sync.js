@@ -12,7 +12,6 @@ import {
 } from "../data/local/storage.js";
 import { recordChange } from "../data/local/manifest.js";
 
-
 function getUserId() {
   const token = localStorage.getItem("token");
   if (!token) return null;
@@ -25,22 +24,16 @@ function getUserId() {
   }
 }
 
-
-
 export async function getTasks(boardId) {
-  const userId = getUserId();
-  const tasks = await loadTasks(boardId);
-
-  return tasks.filter(t => t.userId === userId);
+  return await loadTasks(boardId);
 }
 
 export async function getTasksByColumn(boardId, columnId) {
-  const userId = getUserId();
   const db = await getDb();
-
-  const tasks = await db.getAllFromIndex("tasks", "by-board-column", [boardId, columnId]);
-
-  return tasks.filter(t => t.userId === userId);
+  return await db.getAllFromIndex("tasks", "by-board-column", [
+    boardId,
+    columnId,
+  ]);
 }
 
 export async function addTask(boardId, taskData) {
@@ -70,10 +63,9 @@ export async function addTask(boardId, taskData) {
 }
 
 export async function updateTask(boardId, taskId, updates) {
-  const userId = getUserId();
   const existing = await getTask(taskId);
 
-  if (!existing || existing.boardId !== boardId || existing.userId !== userId) {
+  if (!existing || existing.boardId !== boardId) {
     throw new Error(`Task not found: ${taskId}`);
   }
 
@@ -94,10 +86,9 @@ export async function updateTask(boardId, taskId, updates) {
 }
 
 export async function deleteTask(boardId, taskId) {
-  const userId = getUserId();
   const existing = await getTask(taskId);
 
-  if (!existing || existing.boardId !== boardId || existing.userId !== userId) {
+  if (!existing || existing.boardId !== boardId) {
     throw new Error(`Task not found: ${taskId}`);
   }
 
@@ -131,13 +122,71 @@ export async function clearAllBoardTasks(boardId) {
   await tx.done;
 }
 
-
-
 export async function getBoards() {
-  const userId = getUserId();
-  const boards = await getAllBoards();
+  await pullBoardsFromServer();
+  await pushLocalBoardsToServer();
 
-  return boards.filter(b => b.userId === userId);
+  const userId = getUserId();
+  const allBoards = await getAllBoards();
+
+  return allBoards.filter(
+    (b) => b.userId === userId || (b.members && b.members.includes(userId)),
+  );
+}
+
+async function pullBoardsFromServer() {
+  const token = localStorage.getItem("token");
+  if (!token) return;
+  try {
+    const res = await fetch("http://localhost:3000/boards", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (data.success) await saveServerBoardsLocally(data.boards);
+  } catch (err) {
+    console.error("Failed to pull boards", err);
+  }
+}
+
+async function saveServerBoardsLocally(serverBoards) {
+  const userId = getUserId();
+  const db = await getDb();
+  const tx = db.transaction(["boards"], "readwrite");
+  for (const b of serverBoards) {
+    const existing = await tx.objectStore("boards").get(b.id);
+    const members = existing && existing.members ? existing.members : [];
+    if (!members.includes(userId)) members.push(userId);
+
+    tx.objectStore("boards").put({
+      id: b.id,
+      name: b.name,
+      userId: b.user_id,
+      createdAt: b.created_at,
+      updatedAt: b.updated_at,
+      members: members,
+    });
+  }
+  await tx.done;
+}
+
+async function pushLocalBoardsToServer() {
+  const userId = getUserId();
+  const token = localStorage.getItem("token");
+  if (!token) return;
+
+  const localBoards = await getAllBoards();
+  for (const b of localBoards) {
+    if (b.userId === userId) {
+      fetch("http://localhost:3000/boards", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id: b.id, name: b.name }),
+      }).catch(() => {});
+    }
+  }
 }
 
 export async function addBoard(name) {
@@ -145,7 +194,9 @@ export async function addBoard(name) {
   const now = new Date().toISOString();
 
   const newBoard = {
-    id: crypto.randomUUID ? `board-${crypto.randomUUID()}` : `board-${Date.now()}`,
+    id: crypto.randomUUID
+      ? `board-${crypto.randomUUID()}`
+      : `board-${Date.now()}`,
     name,
     userId,
     createdAt: now,
@@ -159,13 +210,35 @@ export async function addBoard(name) {
   await recordChange("board", newBoard.id, "created", tx);
 
   await tx.done;
+
+  const token = localStorage.getItem("token");
+  if (token) {
+    try {
+      await fetch("http://localhost:3000/boards", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id: newBoard.id, name: newBoard.name }),
+      });
+    } catch (err) {
+      console.error("Failed to sync board creation", err);
+    }
+  }
+
   return newBoard;
 }
 
 export async function deleteBoard(boardId) {
   const userId = getUserId();
-  const tasks = await loadTasks(boardId);
+  const board = (await getAllBoards()).find((b) => b.id === boardId);
 
+  if (!board || board.userId !== userId) {
+    throw new Error("Only the author can delete this board");
+  }
+
+  const tasks = await loadTasks(boardId);
   const db = await getDb();
   const tx = db.transaction(["boards", "tasks", "manifest"], "readwrite");
 
@@ -176,13 +249,19 @@ export async function deleteBoard(boardId) {
     }
   }
 
-  const board = (await getAllBoards()).find(b => b.id === boardId);
-  if (!board || board.userId !== userId) {
-    throw new Error("Unauthorized board deletion");
-  }
-
   await removeBoard(boardId, tx);
   await recordChange("board", boardId, "deleted", tx);
 
   await tx.done;
+  deleteBoardFromServer(boardId);
+}
+
+function deleteBoardFromServer(boardId) {
+  const token = localStorage.getItem("token");
+  if (token) {
+    fetch(`http://localhost:3000/boards/${boardId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch((err) => console.error(err));
+  }
 }

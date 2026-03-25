@@ -9,9 +9,7 @@
   </head>
   <body>
     <div class="card card-md">
-      <button id="back-home-btn" class="back-link">← Back to Home</button>
-
-      <div class="logo">CATCHA <span>Kanban</span></div>
+      <div class="logo">CATCHA<span>Kanban</span></div>
       <div class="card-title">Create your account</div>
 
       <!-- Step Indicator -->
@@ -52,7 +50,9 @@
           </div>
 
           <div class="btn-row">
-            <button id="next-step-btn">Next →</button>
+            <button id="next-step-btn" class="btn btn-step-next btn-full">
+              Next →
+            </button>
           </div>
         </div>
 
@@ -77,8 +77,8 @@
           </div>
 
           <div class="btn-row">
-            <button id="prev-step-btn">← Back</button>
-            <button id="submit-btn">Submit →</button>
+            <button id="prev-step-btn" class="btn btn-step-back">← Back</button>
+            <button id="submit-btn" class="btn btn-step-next">Submit →</button>
           </div>
         </div>
       </div>
@@ -87,7 +87,9 @@
       <div class="success-screen" id="signup-success" hidden>
         <h2>Account Created!</h2>
         <p>You can now log in using your credentials.</p>
-        <button id="login-redirect-btn">← Go to Log In</button>
+        <button id="login-redirect-btn" class="btn btn-primary">
+          ← Go to Log In
+        </button>
       </div>
 
       <div class="footer-link" id="signup-footer">
