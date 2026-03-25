@@ -36,6 +36,7 @@ const cors = require("cors");
 const cron = require("node-cron");
 const pool = require("./db");
 const authMiddleware = require("./middleware/authMiddleware");
+const { globalLimiter, authLimiter, taskLimiter } = require("./middleware/rateLimiter"); // RATE LIMITING
 
 const app = express();
 const PORT = 3000;
@@ -43,11 +44,12 @@ const SECRET = "SECRET_KEY";
 
 app.use(cors());
 app.use(express.json());
+app.use(globalLimiter); // RATE LIMITING - applies to all routes
 
 // AUTH ROUTER-------------
 const authRouter = express.Router();
 
-authRouter.post("/register", async (req, res) => {
+authRouter.post("/register", authLimiter, async (req, res) => { // RATE LIMITING - max 10 per 15 min
     const { email, password, firstName, lastName } = req.body;
     if (!email || !password)
         return res.status(400).json({ success: false, message: "Email and Password are required"});
@@ -69,7 +71,7 @@ authRouter.post("/register", async (req, res) => {
     }
 });
 
-authRouter.post("/login", async (req, res) => {
+authRouter.post("/login", authLimiter, async (req, res) => { // RATE LIMITING - max 10 per 15 min
     const { email, password } = req.body;
     if (!email || !password)
         return res.status(400).json({ success: false, message: "Email and password are required"});
@@ -98,6 +100,7 @@ app.use("/auth", authRouter);
 // TASKS ROUTER------------
 const tasksRouter = express.Router();
 tasksRouter.use(authMiddleware);
+tasksRouter.use(taskLimiter); // RATE LIMITING - max 60 per 15 min per user email
 
 tasksRouter.get("/", async (req, res) => {
     try {
@@ -180,7 +183,7 @@ tasksRouter.post("/", async (req, res) => {
         }
 
         return res.status(400).json({ success: false, message: "Invalid action. Use: create | update | delete" });
-    
+
     } catch (err) {
         console.error("POST /tasks error:", err);
         res.status(500).json({ success: false, message: "Server error"});
