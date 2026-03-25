@@ -1,34 +1,3 @@
-/*----- COMMENTING THIS BLOCK JUST IN CASE -----
-import express from "express";
-import {
-    getBoards, addBoard, deleteBoard,
-    getTasks, addTask, updateTask, deleteTask, moveTask
-} from "./src/services/sync.js";
-
-
-const app = express();
-app.use(express.json());
-app.use(express.static("."));
-
-
-app.get("/api/boards", async (req, res) => {
-    res.json(await getBoards());
-});
-
-app.post("/api/boards", async (req, res) => {
-    const board = await addBoard(req.body.name);
-    res.status(201).json(board);
-});
-
-app.delete("/api/boards/:boardId", async (req, res) => {
-    await deleteBoard(req.params.boardId);
-    res.status(204).send();
-});
-
-
-app.get("/api.boards.:boardId/tasks", async (req, res))
-*/
-
 const express = require("express");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
@@ -44,7 +13,13 @@ const SECRET = "SECRET_KEY";
 app.use(cors());
 app.use(express.json());
 
-// AUTH ROUTER-------------
+app.get("/", (req, res) => {
+    res.send("Server is running!");
+});
+
+
+
+
 const authRouter = express.Router();
 
 authRouter.post("/register", async (req, res) => {
@@ -93,6 +68,8 @@ authRouter.post("/login", async (req, res) => {
 });
 
 app.use("/auth", authRouter);
+
+
 
 
 // TASKS ROUTER------------
@@ -189,6 +166,8 @@ tasksRouter.post("/", async (req, res) => {
 
 app.use("/tasks", tasksRouter);
 
+
+
 app.get("/dashboard", authMiddleware, (req, res) => {
     res.json({ message: "Welcome to dashboard", user: req.user });
 });
@@ -196,6 +175,8 @@ app.get("/dashboard", authMiddleware, (req, res) => {
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
 });
+
+
 
 cron.schedule("0 0 * * *", async () => {
     console.log("CRON JOB: Cleaning soft-deleted tasks");
