@@ -18,7 +18,7 @@ app.post("/register", async (req, res) => {
   if (!email || !password) {
     return res
       .status(400)
-      .json({ success: false, message: "Email and password are required." });
+      .json({ success: false, message: "Email and password are required" });
   }
 
   try {
@@ -27,12 +27,10 @@ app.post("/register", async (req, res) => {
     ]);
 
     if (existing.rows.length > 0) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "An account with this email already exists.",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "An account with this email already exists.",
+      });
     }
 
     const hashed = await bcrypt.hash(password, 10);
@@ -43,12 +41,12 @@ app.post("/register", async (req, res) => {
       [email, hashed, firstName, lastName],
     );
 
-    res.json({ success: true, message: "Account created successfully!" });
+    res.json({ success: true, message: "Account created successfully" });
   } catch (err) {
     console.error("Register error:", err);
     res
       .status(500)
-      .json({ success: false, message: "Server error. Please try again." });
+      .json({ success: false, message: "Server error. Please try again" });
   }
 });
 
@@ -58,7 +56,7 @@ app.post("/login", async (req, res) => {
   if (!email || !password) {
     return res
       .status(400)
-      .json({ success: false, message: "Email and password are required." });
+      .json({ success: false, message: "Email and password are required" });
   }
 
   try {
@@ -71,7 +69,7 @@ app.post("/login", async (req, res) => {
     if (!user) {
       return res
         .status(401)
-        .json({ success: false, message: "Invalid email or password." });
+        .json({ success: false, message: "Invalid email or password" });
     }
 
     const match = await bcrypt.compare(password, user.password);
@@ -79,7 +77,7 @@ app.post("/login", async (req, res) => {
     if (!match) {
       return res
         .status(401)
-        .json({ success: false, message: "Invalid email or password." });
+        .json({ success: false, message: "Invalid email or password" });
     }
 
     const token = jwt.sign({ id: user.id, email: user.email }, SECRET, {
@@ -91,17 +89,46 @@ app.post("/login", async (req, res) => {
     console.error("Login error:", err);
     res
       .status(500)
-      .json({ success: false, message: "Server error. Please try again." });
+      .json({ success: false, message: "Server error. Please try again" });
   }
 });
 
 app.get("/dashboard", authMiddleware, (req, res) => {
   res.json({
-    message: "Welcome to dashboard!",
+    message: "Welcome to dashboard",
     user: req.user,
   });
 });
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
+});
+
+const cron = require("node-cron");
+cron.schedule("0 0 * * *", async () => {
+  console.log("CRON JOB: Cleaning soft-deleted tasks");
+  try {
+    const result = await pool.query(
+      "DELETE FROM tasks WHERE is_deleted = TRUE",
+    );
+  } catch (err) {
+    console.error("CRON JOB ERROR: ", err);
+  }
+});
+
+cron.schedule("0 0 * * *", async () => {
+  console.log("CRON JOB: Archiving old tasks");
+  try {
+    const result = await pool.query(
+      `
+      UPDATE tasks 
+      SET status = 'Archived'
+      WHERE status = 'Done'
+      AND created_at < NOW() - INTERVAL '30 days'
+      AND is_deleted = FALSE
+      `,
+    );
+  } catch (err) {
+    console.error("CRON JOB ERROR:  ", err);
+  }
 });
