@@ -20,6 +20,9 @@ import { getDb } from "./database.js";
  * @returns {string}
  */
 export function generateTaskId() {
+  if (crypto.randomUUID) {
+    return `task-${crypto.randomUUID()}`;
+  }
   return `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
