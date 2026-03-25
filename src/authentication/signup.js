@@ -3,7 +3,7 @@ function setAlert(id, message) {
   if (!el) return;
   el.textContent = message;
   el.style.display = 'block';
-  el.style.color = 'red'; // optional styling
+  el.style.color = 'red';
 }
 
 function hideAlert(id) {
@@ -38,7 +38,6 @@ const Signup = {
         return false;
       }
 
-      // Basic email pattern check
       const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailPattern.test(email)) {
         setAlert('signup-alert', 'Please enter a valid email address.');
@@ -105,7 +104,7 @@ const Signup = {
     btn.innerHTML = 'Submitting…';
 
     try {
-      const res = await fetch('http://localhost:3000/register', { // adjust API URL
+      const res = await fetch('http://localhost:3000/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

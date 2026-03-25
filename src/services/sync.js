@@ -12,7 +12,7 @@ import {
 } from "../data/local/storage.js";
 import { recordChange } from "../data/local/manifest.js";
 
-// ================= USER HELPER =================
+
 function getUserId() {
   const token = localStorage.getItem("token");
   if (!token) return null;
@@ -25,7 +25,7 @@ function getUserId() {
   }
 }
 
-// ===== TASK SYNC OPERATIONS =====
+
 
 export async function getTasks(boardId) {
   const userId = getUserId();
@@ -50,7 +50,7 @@ export async function addTask(boardId, taskData) {
   const newTask = {
     id: generateTaskId(),
     boardId,
-    userId, // ✅ NEW
+    userId,
     title: taskData.title || "Untitled Task",
     createdAt: taskData.createdAt || now,
     updatedAt: now,
@@ -131,7 +131,7 @@ export async function clearAllBoardTasks(boardId) {
   await tx.done;
 }
 
-// ===== BOARD SYNC OPERATIONS =====
+
 
 export async function getBoards() {
   const userId = getUserId();
@@ -147,7 +147,7 @@ export async function addBoard(name) {
   const newBoard = {
     id: crypto.randomUUID ? `board-${crypto.randomUUID()}` : `board-${Date.now()}`,
     name,
-    userId, // ✅ NEW
+    userId,
     createdAt: now,
     updatedAt: now,
   };
