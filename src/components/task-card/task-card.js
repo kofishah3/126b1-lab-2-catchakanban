@@ -73,6 +73,14 @@ export class TaskCard {
       });
 
     this.element
+      .querySelector(".task-card__edit-button")
+      .addEventListener("click", () => {
+        document.dispatchEvent(
+          new CustomEvent("edit-task", { detail: { task: this.task } }),
+        );
+      });
+
+    this.element
       .querySelector(".task-card__delete-button")
       .addEventListener("click", () => {
         document.dispatchEvent(
