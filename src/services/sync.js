@@ -10,7 +10,8 @@ import {
   putBoard,
   removeBoard,
 } from "../data/local/storage.js";
-import { recordChange } from "../data/local/manifest.js";
+import { recordChange, clearManifestEntry } from "../data/local/manifest.js";
+import { pushTask } from "../data/remote/api.js";
 import { showToast } from "../components/toast/toast.js";
 
 function getUserId() {
@@ -58,21 +59,18 @@ async function setupSocketListeners() {
   });
 
   socket.on("taskCreated", async (data) => {
-    const db = await getDb();
     await putTask(data.task);
     document.dispatchEvent(new CustomEvent("refresh-board"));
     showToast(`${data.sender} added a task: ${data.task.title}`, "info");
   });
 
   socket.on("taskUpdated", async (data) => {
-    const db = await getDb();
     await putTask(data.task);
     document.dispatchEvent(new CustomEvent("refresh-board"));
     showToast(`${data.sender} updated task: ${data.task.title}`, "info");
   });
 
   socket.on("taskDeleted", async (data) => {
-    const db = await getDb();
     await removeTask(data.taskId);
     document.dispatchEvent(new CustomEvent("refresh-board"));
     showToast(`${data.sender} deleted a task`, "info");
@@ -152,14 +150,7 @@ export async function addTask(boardId, taskData) {
     socket.emit("taskCreated", { boardId, task: newTask });
   }
 
-  syncTaskWithServer("create", {
-    id: newTask.id,
-    board_id: boardId,
-    title: newTask.title,
-    column_id: newTask.columnId,
-    priority: newTask.priority,
-    deadline: newTask.deadline,
-  });
+  syncTaskNow("create", newTask);
 
   showToast(`Added a task: ${newTask.title}`, "success");
   return newTask;
@@ -190,13 +181,7 @@ export async function updateTask(boardId, taskId, updates) {
     socket.emit("taskUpdated", { boardId, task: updatedTask });
   }
 
-  syncTaskWithServer("update", {
-    id: updatedTask.id,
-    title: updatedTask.title,
-    column_id: updatedTask.columnId,
-    priority: updatedTask.priority,
-    deadline: updatedTask.deadline,
-  });
+  syncTaskNow("update", updatedTask);
 
   return updatedTask;
 }
@@ -220,23 +205,18 @@ export async function deleteTask(boardId, taskId) {
     socket.emit("taskDeleted", { boardId, taskId });
   }
 
-  syncTaskWithServer("delete", { id: taskId });
+  syncTaskNow("delete", { id: taskId });
 
   showToast(`Deleted task`, "success");
 }
 
-function syncTaskWithServer(action, payload) {
-  const token = localStorage.getItem("token");
-  if (!token) return;
-
-  fetch("http://localhost:3000/tasks", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ action, ...payload }),
-  }).catch(() => {});
+async function syncTaskNow(action, task) {
+  try {
+    await pushTask(task, action);
+    await clearManifestEntry(`task:${task.id}`);
+  } catch {
+    // Push failed — manifest entry stays, networkSync retries next cycle
+  }
 }
 
 export async function moveTask(boardId, taskId, newColumnId) {
