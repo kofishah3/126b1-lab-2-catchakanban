@@ -1,5 +1,15 @@
 const API_BASE = "http://localhost:3000";
 
+let serverReachable = true;
+
+export function isServerReachable() {
+  return serverReachable;
+}
+
+export function markServerReachable() {
+  serverReachable = true;
+}
+
 const FIELD_MAP = {
   boardId: "board_id",
   columnId: "column_id",
@@ -39,10 +49,24 @@ function getAuthHeaders() {
 }
 
 async function request(path, options = {}) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: getAuthHeaders(),
-  });
+  if (!serverReachable) {
+    throw new TypeError("Server unreachable");
+  }
+
+  let res;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: getAuthHeaders(),
+    });
+  } catch (err) {
+    if (err instanceof TypeError) {
+      serverReachable = false;
+    }
+    throw err;
+  }
+
+  serverReachable = true;
 
   if (res.status === 401 || res.status === 403) {
     localStorage.removeItem("token");

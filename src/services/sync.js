@@ -11,7 +11,7 @@ import {
   removeBoard,
 } from "../data/local/storage.js";
 import { recordChange, clearManifestEntry } from "../data/local/manifest.js";
-import { pushTask } from "../data/remote/api.js";
+import { pushTask, pushBoard, isServerReachable, markServerReachable } from "../data/remote/api.js";
 import { showToast } from "../components/toast/toast.js";
 
 function getUserId() {
@@ -30,10 +30,14 @@ let socket;
 
 export function connectSocket(boardId) {
   const token = localStorage.getItem("token");
-  if (!token || !window.io) return;
+  if (!token || !window.io || !isServerReachable()) return;
 
   if (!socket) {
-    socket = window.io("http://localhost:3000", { auth: { token } });
+    socket = window.io("http://localhost:3000", {
+      auth: { token },
+      reconnectionAttempts: 3,
+      reconnectionDelay: 2000,
+    });
     setupSocketListeners();
   }
   if (boardId) {
@@ -83,16 +87,13 @@ export async function getTasks(boardId) {
 
 async function pullTasksFromServer() {
   const token = localStorage.getItem("token");
-  if (!token) return;
-  try {
-    const res = await fetch("http://localhost:3000/tasks", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const data = await res.json();
-    if (data.success) await saveServerTasksLocally(data.tasks);
-  } catch (err) {
-    console.error("Failed to pull tasks", err);
-  }
+  if (!token || !isServerReachable()) return;
+
+  const res = await fetch("http://localhost:3000/tasks", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json();
+  if (data.success) await saveServerTasksLocally(data.tasks);
 }
 
 async function saveServerTasksLocally(serverTasks) {
@@ -211,11 +212,29 @@ export async function deleteTask(boardId, taskId) {
 }
 
 async function syncTaskNow(action, task) {
-  try {
-    await pushTask(task, action);
-    await clearManifestEntry(`task:${task.id}`);
-  } catch {
-    // Push failed — manifest entry stays, networkSync retries next cycle
+  for (let i = 0; i < 3; i++) {
+    markServerReachable();
+    try {
+      await pushTask(task, action);
+      await clearManifestEntry(`task:${task.id}`);
+      return;
+    } catch {
+      if (i < 2) await new Promise(r => setTimeout(r, 2000));
+    }
+  }
+  // All retries failed — manifest entry stays, networkSync retries next cycle
+}
+
+async function syncBoardNow(action, board) {
+  for (let i = 0; i < 3; i++) {
+    markServerReachable();
+    try {
+      await pushBoard(board, action);
+      await clearManifestEntry(`board:${board.id}`);
+      return;
+    } catch {
+      if (i < 2) await new Promise(r => setTimeout(r, 2000));
+    }
   }
 }
 
@@ -241,9 +260,13 @@ export async function clearAllBoardTasks(boardId) {
 }
 
 export async function getBoards() {
-  await pullBoardsFromServer();
-  await pullTasksFromServer();
-  await pushLocalBoardsToServer();
+  try {
+    await pullBoardsFromServer();
+    await pullTasksFromServer();
+    await pushLocalBoardsToServer();
+  } catch {
+    // Server unreachable — fall back to local data
+  }
 
   const userId = getUserId();
   const allBoards = await getAllBoards();
@@ -255,16 +278,13 @@ export async function getBoards() {
 
 async function pullBoardsFromServer() {
   const token = localStorage.getItem("token");
-  if (!token) return;
-  try {
-    const res = await fetch("http://localhost:3000/boards", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const data = await res.json();
-    if (data.success) await saveServerBoardsLocally(data.boards);
-  } catch (err) {
-    console.error("Failed to pull boards", err);
-  }
+  if (!token || !isServerReachable()) return;
+
+  const res = await fetch("http://localhost:3000/boards", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json();
+  if (data.success) await saveServerBoardsLocally(data.boards);
 }
 
 async function saveServerBoardsLocally(serverBoards) {
@@ -291,19 +311,19 @@ async function saveServerBoardsLocally(serverBoards) {
 async function pushLocalBoardsToServer() {
   const userId = getUserId();
   const token = localStorage.getItem("token");
-  if (!token) return;
+  if (!token || !isServerReachable()) return;
 
   const localBoards = await getAllBoards();
   for (const b of localBoards) {
     if (b.userId === userId) {
-      fetch("http://localhost:3000/boards", {
+      await fetch("http://localhost:3000/boards", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ id: b.id, name: b.name }),
-      }).catch(() => {});
+      });
     }
   }
 }
@@ -330,21 +350,7 @@ export async function addBoard(name) {
 
   await tx.done;
 
-  const token = localStorage.getItem("token");
-  if (token) {
-    try {
-      await fetch("http://localhost:3000/boards", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ id: newBoard.id, name: newBoard.name }),
-      });
-    } catch (err) {
-      console.error("Failed to sync board creation", err);
-    }
-  }
+  syncBoardNow("create", newBoard);
 
   return newBoard;
 }
@@ -372,15 +378,6 @@ export async function deleteBoard(boardId) {
   await recordChange("board", boardId, "deleted", tx);
 
   await tx.done;
-  deleteBoardFromServer(boardId);
-}
 
-function deleteBoardFromServer(boardId) {
-  const token = localStorage.getItem("token");
-  if (token) {
-    fetch(`http://localhost:3000/boards/${boardId}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${token}` },
-    }).catch((err) => console.error(err));
-  }
+  syncBoardNow("delete", { id: boardId });
 }

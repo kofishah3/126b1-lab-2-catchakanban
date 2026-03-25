@@ -1,6 +1,6 @@
 import { getManifest, clearManifestEntry, purgeTombstones } from "../data/local/manifest.js";
 import { getTask, putTask, removeTask, getBoards as getAllLocalBoards, putBoard, removeBoard } from "../data/local/storage.js";
-import { fetchBoards, fetchTasks, pushBoard, pushTask } from "../data/remote/api.js";
+import { fetchBoards, fetchTasks, pushBoard, pushTask, markServerReachable } from "../data/remote/api.js";
 import { state } from "../state.js";
 import { getBoards } from "./sync.js";
 
@@ -26,6 +26,7 @@ export async function initialSync() {
   if (!navigator.onLine) return;
 
   isSyncing = true;
+  markServerReachable();
   try {
     await pushChanges();
     await pullFromServer({ skipRefresh: true });
@@ -67,6 +68,7 @@ async function sync() {
   if (!localStorage.getItem("token")) return;
 
   isSyncing = true;
+  markServerReachable();
   try {
     await pushChanges();
     await pullFromServer();
@@ -88,8 +90,8 @@ async function pushChanges() {
       } else if (entry.entityType === "task") {
         await pushTaskChange(entry);
       }
-    } catch {
-      // Skip failed entry, retry on next cycle
+    } catch (err) {
+      if (err instanceof TypeError) throw err;
     }
   }
 }
