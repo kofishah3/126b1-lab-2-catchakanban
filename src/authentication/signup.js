@@ -24,7 +24,6 @@ const Signup = {
     const $nextBtn = document.getElementById("next-step-btn");
     const $prevBtn = document.getElementById("prev-step-btn");
     const $submitBtn = document.getElementById("submit-btn");
-    const $backHomeBtn = document.getElementById("back-home-btn");
     const $loginRedirectBtn = document.getElementById("login-redirect-btn");
     const $loginLinkBtn = document.getElementById("login-link-btn");
 
@@ -32,7 +31,6 @@ const Signup = {
     if ($prevBtn) $prevBtn.addEventListener("click", () => this.handleBackClick());
     if ($submitBtn) $submitBtn.addEventListener("click", () => this.handleSubmitClick());
     
-    if ($backHomeBtn) $backHomeBtn.addEventListener("click", () => location.href = "index.html");
     if ($loginRedirectBtn) $loginRedirectBtn.addEventListener("click", () => location.href = "login.html");
     if ($loginLinkBtn) $loginLinkBtn.addEventListener("click", () => location.href = "login.html");
   },

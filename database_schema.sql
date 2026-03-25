@@ -24,6 +24,14 @@ CREATE TABLE IF NOT EXISTS boards (
         ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS board_members (
+    board_id TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    PRIMARY KEY (board_id, user_id),
+    CONSTRAINT fk_board FOREIGN KEY(board_id) REFERENCES boards(id) ON DELETE CASCADE,
+    CONSTRAINT fk_user FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS tasks (
     id TEXT PRIMARY KEY,
     board_id TEXT NOT NULL,

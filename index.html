@@ -20,8 +20,14 @@
     />
     <link rel="stylesheet" href="./src/components/task-card/task-card.css" />
     <link rel="stylesheet" href="./src/components/task-modal/task-modal.css" />
+    <link rel="stylesheet" href="./src/components/toast/toast.css" />
+    <link
+      rel="stylesheet"
+      href="./src/components/members-panel/members-panel.css"
+    />
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://unpkg.com/idb@8/build/umd.js"></script>
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
     <link
       rel="stylesheet"
       href="./src/components/delete-modal/delete-modal.css"
@@ -48,6 +54,31 @@
         >
           + Add Kanban Board
         </button>
+
+        <div class="sidebar-user" id="sidebar-user">
+          <div class="sidebar-user__info">
+            <i
+              data-lucide="user"
+              class="sidebar-user__icon"
+              aria-hidden="true"
+            ></i>
+            <div class="sidebar-user__text-wrap">
+              <span class="sidebar-user__name" id="user-name"></span>
+              <span class="sidebar-user__email" id="user-email"></span>
+            </div>
+          </div>
+          <button
+            class="sidebar-user__logout-button focus-none focus-ring"
+            id="logout-button"
+            aria-label="Log out"
+          >
+            <i
+              data-lucide="log-out"
+              class="sidebar-user__logout-icon"
+              aria-hidden="true"
+            ></i>
+          </button>
+        </div>
       </nav>
 
       <main class="main-content" id="main-content">
@@ -67,6 +98,18 @@
             <h1 class="header__title heading-reset" id="board-title">
               Kanban Board
             </h1>
+            <button
+              class="header__members-button focus-none"
+              id="MEMBERS_PANEL_BTN"
+              aria-label="View Board Members"
+            >
+              <i
+                data-lucide="users"
+                class="header__add-task-icon"
+                aria-hidden="true"
+              ></i>
+              <span>Members</span>
+            </button>
             <button
               class="header__add-task-button focus-none"
               id="universal-add-task-button"

@@ -101,8 +101,6 @@
   width: 100%;
 }
 
-
-
 .logo {
   display: flex;
   align-items: center;
@@ -217,6 +215,71 @@
   border-color: transparent;
 }
 
+.sidebar-user {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-sm);
+  border-top: 1px solid var(--button-hover-white);
+  gap: var(--spacing-xs);
+}
+
+.sidebar-user__info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  min-width: 0;
+}
+
+.sidebar-user__text-wrap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sidebar-user__name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-light);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.sidebar-user__email {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.sidebar-user__logout-button {
+  all: unset;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+}
+
+.sidebar-user__logout-button:hover {
+  background-color: var(--button-hover-white);
+  color: #ff6b6b;
+}
+
+.sidebar-user__logout-icon {
+  width: 16px;
+  height: 16px;
+}
 
 .kanban-view {
   flex: 1;
@@ -259,9 +322,6 @@
   box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.2);
 }
 
-
-/* reusable components !! */
-/* borrowed most styles from tailwind cuz am most comfortable with it */
 .flex {
   display: flex;
 }
@@ -473,8 +533,6 @@
     padding: var(--spacing-md);
     gap: var(--spacing-md);
   }
-
-
 
   .sidebar-overlay {
     position: fixed;
