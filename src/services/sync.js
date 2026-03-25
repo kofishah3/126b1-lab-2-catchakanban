@@ -31,7 +31,7 @@ export async function getTasks(boardId) {
   const userId = getUserId();
   const tasks = await loadTasks(boardId);
 
-  return tasks.filter(t => t.userId === userId);
+  return tasks.filter(t => t.userId === userId || !t.userId);
 }
 
 export async function getTasksByColumn(boardId, columnId) {
@@ -40,7 +40,7 @@ export async function getTasksByColumn(boardId, columnId) {
 
   const tasks = await db.getAllFromIndex("tasks", "by-board-column", [boardId, columnId]);
 
-  return tasks.filter(t => t.userId === userId);
+  return tasks.filter(t => t.userId === userId || !t.userId);
 }
 
 export async function addTask(boardId, taskData) {
@@ -137,7 +137,7 @@ export async function getBoards() {
   const userId = getUserId();
   const boards = await getAllBoards();
 
-  return boards.filter(b => b.userId === userId);
+  return boards.filter(b => b.userId === userId || !b.userId);
 }
 
 export async function addBoard(name) {

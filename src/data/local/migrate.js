@@ -56,13 +56,18 @@ export async function runMigrations() {
       localStorage.setItem(migrationKey(migration.id), "true");
     }
 
-    if (once && localStorage.getItem(migrationKey(migration.id))) continue;
+    if (once && localStorage.getItem(migrationKey(migration.id))) {
+      console.log(`[migrate] Skipping "${migration.id}" (already done)`);
+      continue;
+    }
 
     try {
+      console.log(`[migrate] Running "${migration.id}"...`);
       await migration.run();
       if (once) {
         localStorage.setItem(migrationKey(migration.id), "true");
       }
+      console.log(`[migrate] Finished "${migration.id}"`);
     } catch (err) {
       throw new Error(`Migration "${migration.id}" failed: ${err.message}`);
     }
@@ -152,29 +157,37 @@ async function migrateLocalStorageToIndexedDB() {
  */
 async function hydrateUserIds() {
   const userId = getCurrentUserId();
-  if (!userId) return;
+  console.log("[migrate:002] userId from token:", userId);
+  if (!userId) {
+    console.warn("[migrate:002] No userId — skipping hydration (not logged in?)");
+    return;
+  }
 
   const db = await getDb();
 
   const boards = await db.getAll("boards");
+  console.log(`[migrate:002] Found ${boards.length} board(s) in IndexedDB`);
   const orphanBoards = boards.filter(b => !b.userId);
+  console.log(`[migrate:002] ${orphanBoards.length} board(s) missing userId`);
   if (orphanBoards.length > 0) {
     const tx = db.transaction("boards", "readwrite");
     for (const board of orphanBoards) {
       tx.store.put({ ...board, userId });
     }
     await tx.done;
-    console.log(`[migrate] Stamped userId on ${orphanBoards.length} board(s).`);
+    console.log(`[migrate:002] Stamped userId on ${orphanBoards.length} board(s).`);
   }
 
   const tasks = await db.getAll("tasks");
+  console.log(`[migrate:002] Found ${tasks.length} task(s) in IndexedDB`);
   const orphanTasks = tasks.filter(t => !t.userId);
+  console.log(`[migrate:002] ${orphanTasks.length} task(s) missing userId`);
   if (orphanTasks.length > 0) {
     const tx = db.transaction("tasks", "readwrite");
     for (const task of orphanTasks) {
       tx.store.put({ ...task, userId });
     }
     await tx.done;
-    console.log(`[migrate] Stamped userId on ${orphanTasks.length} task(s).`);
+    console.log(`[migrate:002] Stamped userId on ${orphanTasks.length} task(s).`);
   }
 }
