@@ -47,6 +47,15 @@ export async function getChangesSince(timestamp) {
 }
 
 /**
+ * Remove a single manifest entry by key after a successful push.
+ * @param {string} key - manifest key (e.g. "task:task-123")
+ */
+export async function clearManifestEntry(key) {
+  const db = await getDb();
+  await db.delete("manifest", key);
+}
+
+/**
  * Remove tombstones for the given entity keys.
  * Called after remote sync confirms deletion acknowledgment.
  * @param {string[]} keys - manifest keys to purge (e.g. ["task:task-123"])
