@@ -100,7 +100,7 @@ tasksRouter.use(taskLimiter);
 tasksRouter.get("/", async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT t.id, t.title, t.column_id, t.priority, t.deadline, t.created_at
+      `SELECT t.id, t.board_id, t.title, t.column_id, t.priority, t.deadline, t.created_at, t.updated_at
        FROM tasks t
        JOIN boards b ON t.board_id = b.id
        WHERE b.user_id = $1
