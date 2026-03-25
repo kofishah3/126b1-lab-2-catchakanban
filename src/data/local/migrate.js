@@ -3,10 +3,14 @@ import { getDb } from "./database.js";
 // ---------------------------------------------------------------------------
 // Migration runner
 //
-// Each entry in MIGRATIONS runs exactly once, tracked by its id in
-// localStorage ("migration:<id>"). To patch up any future schema drift,
-// just append a new object to the array — existing installs will pick it
-// up on next startup; fresh installs will run everything from scratch.
+// Each entry in MIGRATIONS is either:
+//   - runOnce: true  (default) — runs once, then permanently flagged in
+//                                localStorage so it never runs again.
+//   - runOnce: false           — runs every startup. Must be idempotent.
+//                                Useful for data patches that depend on
+//                                runtime state (e.g. logged-in userId).
+//
+// To fix any future schema drift, just append a new object to the array.
 // ---------------------------------------------------------------------------
 
 const MIGRATIONS = [
@@ -17,6 +21,7 @@ const MIGRATIONS = [
   {
     id: "002-hydrate-user-ids",
     run: hydrateUserIds,
+    runOnce: false,
   },
 ];
 
@@ -35,11 +40,14 @@ function getCurrentUserId() {
 }
 
 /**
- * Runs all pending migrations in order. Safe to call on every startup —
- * already-applied migrations are skipped via their localStorage flag.
+ * Runs all pending migrations in order. Safe to call on every startup.
+ * - runOnce migrations (default) are skipped after their first successful run.
+ * - Recurring migrations (runOnce: false) execute every startup.
  */
 export async function runMigrations() {
   for (const migration of MIGRATIONS) {
+    const once = migration.runOnce !== false;
+
     // Backward-compat: treat the old one-off flag as migration 001 being done.
     if (
       migration.id === "001-localStorage-to-indexeddb" &&
@@ -48,11 +56,13 @@ export async function runMigrations() {
       localStorage.setItem(migrationKey(migration.id), "true");
     }
 
-    if (localStorage.getItem(migrationKey(migration.id))) continue;
+    if (once && localStorage.getItem(migrationKey(migration.id))) continue;
 
     try {
       await migration.run();
-      localStorage.setItem(migrationKey(migration.id), "true");
+      if (once) {
+        localStorage.setItem(migrationKey(migration.id), "true");
+      }
     } catch (err) {
       throw new Error(`Migration "${migration.id}" failed: ${err.message}`);
     }
@@ -134,6 +144,12 @@ async function migrateLocalStorageToIndexedDB() {
   localStorage.removeItem(BOARDS_KEY);
 }
 
+/**
+ * Stamps any board or task in IndexedDB that is missing a userId
+ * with the currently logged-in user's id. Runs every startup (runOnce: false)
+ * because it depends on the user being logged in, which isn't guaranteed.
+ * Idempotent — skips records that already have userId.
+ */
 async function hydrateUserIds() {
   const userId = getCurrentUserId();
   if (!userId) return;
@@ -148,6 +164,7 @@ async function hydrateUserIds() {
       tx.store.put({ ...board, userId });
     }
     await tx.done;
+    console.log(`[migrate] Stamped userId on ${orphanBoards.length} board(s).`);
   }
 
   const tasks = await db.getAll("tasks");
@@ -158,5 +175,6 @@ async function hydrateUserIds() {
       tx.store.put({ ...task, userId });
     }
     await tx.done;
+    console.log(`[migrate] Stamped userId on ${orphanTasks.length} task(s).`);
   }
 }
