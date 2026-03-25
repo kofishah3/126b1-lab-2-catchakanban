@@ -10,7 +10,7 @@
 <body>
 
 <div class="card card-sm">
-  <button class="back-link" onclick="location.href='/index.html'">
+  <button id="back-btn" class="back-link">
     ← Back to Home
   </button>
 
@@ -30,13 +30,13 @@
     <input type="password" id="login-password" placeholder="Enter your password"/>
   </div>
 
-  <button id="login-btn" onclick="submitLogin()">Log In</button>
+  <button id="login-btn">Log In</button>
 
   <div class="divider">or</div>
 
   <div class="footer-link">
     Don't have an account?
-    <button onclick="location.href='signup.html'">Sign up here</button>
+    <button id="signup-link-btn">Sign up here</button>
   </div>
 </div>
 <script src="login.js"></script>
