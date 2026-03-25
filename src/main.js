@@ -3,6 +3,7 @@ import { setupEventListeners } from "./events.js";
 import { setupKeyboardShortcuts } from "./keyboard.js";
 import { migrateFromLocalStorage } from "./data/local/migrate.js";
 import { initializeState } from "./state.js";
+import { startSync } from "./services/networkSync.js";
 
 async function initializeApp() {
   try {
@@ -11,6 +12,8 @@ async function initializeApp() {
 
     renderBoardsNav();
     await renderBoard();
+
+    startSync();
 
     if (window.lucide) {
       window.lucide.createIcons();
