@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Kanban – Log In</title>
+  <link rel="stylesheet" href="login.css">
+  <link rel="stylesheet" href="shared.css">
+</head>
+<body>
+
+<div class="card card-sm">
+  <button class="back-link" onclick="location.href='/index.html'">
+    ← Back to Home
+  </button>
+
+  <div class="logo">CATCHA <span>Kanban</span></div>
+  <div class="card-title">Welcome back</div>
+  <div class="card-subtitle">Log in to your account.</div>
+
+  <div class="alert" id="login-alert"></div>
+
+  <div class="form-group">
+    <label>Email</label>
+    <input type="email" id="login-email" placeholder="Enter your email"/>
+  </div>
+
+  <div class="form-group">
+    <label>Password</label>
+    <input type="password" id="login-password" placeholder="Enter your password"/>
+  </div>
+
+  <button id="login-btn" onclick="submitLogin()">Log In</button>
+
+  <div class="divider">or</div>
+
+  <div class="footer-link">
+    Don't have an account?
+    <button onclick="location.href='signup.html'">Sign up here</button>
+  </div>
+</div>
+<script src="login.js"></script>
+</body>
+</html>
