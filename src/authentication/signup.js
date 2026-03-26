@@ -153,7 +153,10 @@ const Signup = {
   },
 
   async registerUser(userData) {
-    const res = await fetch(`${window.location.origin}/auth/register`, {
+    const API = window.location.port !== "3000" && window.location.hostname === "localhost"
+      ? "http://localhost:3000"
+      : window.location.origin;
+    const res = await fetch(`${API}/auth/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(userData),
