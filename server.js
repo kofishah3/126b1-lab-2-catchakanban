@@ -254,13 +254,36 @@ app.get("/boards", authMiddleware, async (req, res) => {
 });
 
 app.post("/boards", authMiddleware, async (req, res) => {
-  const { id, name } = req.body;
-  if (!id || !name)
-    return res
-      .status(400)
-      .json({ success: false, message: "id and name are required" });
+  const { action, id, name } = req.body;
 
   try {
+    if (action === "delete") {
+      if (!id)
+        return res
+          .status(400)
+          .json({ success: false, message: "id is required" });
+
+      const result = await pool.query(
+        "DELETE FROM boards WHERE id = $1 AND user_id = $2",
+        [id, req.user.id],
+      );
+      if (result.rowCount === 0)
+        return res
+          .status(403)
+          .json({ success: false, message: "Unauthorized or not found" });
+
+      if (io) {
+        io.to(id).emit("boardDeleted", { boardId: id });
+      }
+
+      return res.json({ success: true, message: "Board deleted" });
+    }
+
+    if (!id || !name)
+      return res
+        .status(400)
+        .json({ success: false, message: "id and name are required" });
+
     await pool.query(
       "INSERT INTO boards (id, name, user_id) VALUES ($1, $2, $3) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, updated_at = CURRENT_TIMESTAMP",
       [id, name, req.user.id],
