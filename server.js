@@ -38,13 +38,15 @@ async function runDbMigrations() {
 }
 
 app.set("io", io);
+app.set("trust proxy", 1);
 
 app.use(cors());
 app.use(express.json());
+app.use(express.static(__dirname));
 app.use(globalLimiter);
 
 app.get("/", (req, res) => {
-  res.send("Server is running!");
+  res.sendFile(__dirname + "/index.html");
 });
 
 app.use("/auth", authRoutes);

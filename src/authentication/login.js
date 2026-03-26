@@ -1,4 +1,4 @@
-const API = "http://localhost:3000";
+const API = window.location.origin;
 
 function hideAlert(id) {
   const $el = document.getElementById(id);

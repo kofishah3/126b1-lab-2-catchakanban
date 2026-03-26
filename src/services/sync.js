@@ -1,3 +1,4 @@
+import { API_BASE } from "../config.js";
 import { getDb } from "../data/local/database.js";
 import {
   generateTaskId,
@@ -11,7 +12,12 @@ import {
   removeBoard,
 } from "../data/local/storage.js";
 import { recordChange, clearManifestEntry } from "../data/local/manifest.js";
-import { pushTask, pushBoard, isServerReachable, markServerReachable } from "../data/remote/api.js";
+import {
+  pushTask,
+  pushBoard,
+  isServerReachable,
+  markServerReachable,
+} from "../data/remote/api.js";
 import { showToast } from "../components/toast/toast.js";
 
 function getUserId() {
@@ -33,7 +39,7 @@ export function connectSocket(boardId) {
   if (!token || !window.io || !isServerReachable()) return;
 
   if (!socket) {
-    socket = window.io("http://localhost:3000", {
+    socket = window.io(API_BASE, {
       auth: { token },
       reconnectionAttempts: 3,
       reconnectionDelay: 2000,
@@ -89,7 +95,7 @@ async function pullTasksFromServer() {
   const token = localStorage.getItem("token");
   if (!token || !isServerReachable()) return;
 
-  const res = await fetch("http://localhost:3000/tasks", {
+  const res = await fetch(`${API_BASE}/tasks`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   const data = await res.json();
@@ -219,7 +225,7 @@ async function syncTaskNow(action, task) {
       await clearManifestEntry(`task:${task.id}`);
       return;
     } catch {
-      if (i < 2) await new Promise(r => setTimeout(r, 2000));
+      if (i < 2) await new Promise((r) => setTimeout(r, 2000));
     }
   }
   // All retries failed — manifest entry stays, networkSync retries next cycle
@@ -233,7 +239,7 @@ async function syncBoardNow(action, board) {
       await clearManifestEntry(`board:${board.id}`);
       return;
     } catch {
-      if (i < 2) await new Promise(r => setTimeout(r, 2000));
+      if (i < 2) await new Promise((r) => setTimeout(r, 2000));
     }
   }
 }
@@ -280,7 +286,7 @@ async function pullBoardsFromServer() {
   const token = localStorage.getItem("token");
   if (!token || !isServerReachable()) return;
 
-  const res = await fetch("http://localhost:3000/boards", {
+  const res = await fetch(`${API_BASE}/boards`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   const data = await res.json();
@@ -316,7 +322,7 @@ async function pushLocalBoardsToServer() {
   const localBoards = await getAllBoards();
   for (const b of localBoards) {
     if (b.userId === userId) {
-      await fetch("http://localhost:3000/boards", {
+      await fetch(`${API_BASE}/boards`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
