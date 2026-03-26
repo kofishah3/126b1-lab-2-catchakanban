@@ -1,4 +1,7 @@
-const API = window.location.origin;
+const API =
+  window.location.port !== "3000" && window.location.hostname === "localhost"
+    ? "http://localhost:3000"
+    : window.location.origin;
 
 function hideAlert(id) {
   const $el = document.getElementById(id);
@@ -15,7 +18,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const $signupLinkBtn = document.getElementById("signup-link-btn");
 
   if ($loginBtn) $loginBtn.addEventListener("click", handleLoginSubmit);
-  if ($signupLinkBtn) $signupLinkBtn.addEventListener("click", handleSignupLinkClick);
+  if ($signupLinkBtn)
+    $signupLinkBtn.addEventListener("click", handleSignupLinkClick);
 
   document.addEventListener("keydown", (e) => {
     if (e.key === "Enter") handleLoginSubmit();

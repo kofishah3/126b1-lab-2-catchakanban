@@ -1,9 +1,8 @@
 const rateLimit = require("express-rate-limit");
 
-// Applies to ALL routes - general protection per IP
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 500,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -12,10 +11,9 @@ const globalLimiter = rateLimit({
   },
 });
 
-// Applies to /auth/register and /auth/login - prevents brute force per IP
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 100,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -24,19 +22,18 @@ const authLimiter = rateLimit({
   },
 });
 
-// Applies to /tasks - limits per user email, falls back to IP
 const taskLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 60,
   keyGenerator: (req) => {
     if (req.user?.email) return req.user.email;
-    // Use ipKeyGenerator to properly handle IPv6
+
     return rateLimit.ipKeyGenerator(req);
   },
   standardHeaders: true,
   legacyHeaders: false,
   skipFailedRequests: false,
-  validate: { xForwardedForHeader: false }, // suppress IPv6 warning
+  validate: { xForwardedForHeader: false },
   message: {
     success: false,
     message: "Too many task requests. Please slow down.",
