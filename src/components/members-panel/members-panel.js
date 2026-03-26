@@ -1,3 +1,4 @@
+import { API_BASE } from "../../config.js";
 export async function createMembersPanel(boardId) {
   const $overlay = document.createElement("div");
   $overlay.className = "modal-overlay flex justify-center items-center";
@@ -117,7 +118,7 @@ async function fetchAndRenderAllUsers($modal) {
 
 async function inviteUserToBoard(boardId, email) {
   const token = localStorage.getItem("token");
-  const res = await fetch(`http://localhost:3000/boards/${boardId}/members`, {
+  const res = await fetch(`${API_BASE}/boards/${boardId}/members`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -130,7 +131,7 @@ async function inviteUserToBoard(boardId, email) {
 
 async function getBoardMembers(boardId) {
   const token = localStorage.getItem("token");
-  const res = await fetch(`http://localhost:3000/boards/${boardId}/members`, {
+  const res = await fetch(`${API_BASE}/boards/${boardId}/members`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   const data = await res.json();
@@ -139,7 +140,7 @@ async function getBoardMembers(boardId) {
 
 async function getAllUsers() {
   const token = localStorage.getItem("token");
-  const res = await fetch(`http://localhost:3000/users`, {
+  const res = await fetch(`${API_BASE}/users`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   const data = await res.json();

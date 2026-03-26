@@ -1,11 +1,8 @@
 const cron = require("node-cron");
 const pool = require("../../db");
 
-/**
- * Initializes all backend cron jobs.
- */
 function initCron() {
-  cron.schedule("0 0 * * *", async () => {
+  cron.schedule("25 10 * * *", async () => {
     console.log("CRON JOB: Cleaning soft-deleted tasks");
     try {
       await pool.query("DELETE FROM tasks WHERE is_deleted = TRUE");
@@ -14,7 +11,7 @@ function initCron() {
     }
   });
 
-  cron.schedule("0 0 * * *", async () => {
+  cron.schedule("26 10 * * *", async () => {
     console.log("CRON JOB: Archiving old tasks");
     try {
       await pool.query(

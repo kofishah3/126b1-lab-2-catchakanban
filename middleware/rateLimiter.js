@@ -3,7 +3,7 @@ const { ipKeyGenerator } = require("express-rate-limit");
 
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 500,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -14,7 +14,7 @@ const globalLimiter = rateLimit({
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 2,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
