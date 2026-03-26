@@ -35,7 +35,7 @@ export async function loadTasks(boardId) {
 
 /**
  * @param {Object} task
- * @param {IDBTransaction} [tx] - optional existing transaction
+ * @param {IDBTransaction} [tx]
  */
 export async function putTask(task, tx) {
   if (tx) {
@@ -48,7 +48,7 @@ export async function putTask(task, tx) {
 
 /**
  * @param {string} taskId
- * @param {IDBTransaction} [tx] - optional existing transaction
+ * @param {IDBTransaction} [tx]
  */
 export async function removeTask(taskId, tx) {
   if (tx) {
@@ -95,7 +95,7 @@ export async function getBoards() {
 
 /**
  * @param {Object} board
- * @param {IDBTransaction} [tx] - optional existing transaction
+ * @param {IDBTransaction} [tx]
  */
 export async function putBoard(board, tx) {
   if (tx) {
@@ -108,7 +108,7 @@ export async function putBoard(board, tx) {
 
 /**
  * @param {string} boardId
- * @param {IDBTransaction} [tx] - optional existing transaction
+ * @param {IDBTransaction} [tx]
  */
 export async function removeBoard(boardId, tx) {
   if (tx) {
