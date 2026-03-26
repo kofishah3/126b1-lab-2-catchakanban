@@ -1,8 +1,9 @@
 import { renderBoardsNav, renderBoard } from "./ui.js";
 import { setupEventListeners } from "./events.js";
 import { setupKeyboardShortcuts } from "./keyboard.js";
-import { migrateFromLocalStorage } from "./data/local/migrate.js";
+import { runMigrations } from "./data/local/migrate.js";
 import { initializeState } from "./state.js";
+import { initialSync, startSync } from "./services/networkSync.js";
 
 function requireAuth() {
   const token = localStorage.getItem("token");
@@ -62,11 +63,14 @@ async function initializeApp() {
   if (!requireAuth()) return;
 
   try {
-    await migrateFromLocalStorage();
+    await runMigrations();
+    await initialSync();
     await initializeState();
 
     renderBoardsNav();
     await renderBoard();
+
+    startSync();
 
     if (window.lucide) {
       window.lucide.createIcons();

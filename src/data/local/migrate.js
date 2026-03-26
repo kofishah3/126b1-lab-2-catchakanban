@@ -1,34 +1,69 @@
 import { getDb } from "./database.js";
 
-const MIGRATION_FLAG = "indexeddb-migration-complete";
-const BOARDS_KEY = "kanban-boards";
+const MIGRATIONS = [
+  {
+    id: "001-localStorage-to-indexeddb",
+    run: migrateLocalStorageToIndexedDB,
+  },
+  {
+    id: "002-hydrate-user-ids",
+    run: hydrateUserIds,
+    runOnce: false,
+  },
+];
 
-/**
- * One-time migration from localStorage to IndexedDB.
- * Transfers all boards and their tasks, then removes localStorage keys.
- */
-export async function migrateFromLocalStorage() {
-  if (localStorage.getItem(MIGRATION_FLAG)) {
-    return;
+function migrationKey(id) {
+  return `migration:${id}`;
+}
+
+function getCurrentUserId() {
+  const token = localStorage.getItem("token");
+  if (!token) return null;
+  try {
+    return JSON.parse(atob(token.split(".")[1])).id;
+  } catch {
+    return null;
   }
+}
 
+export async function runMigrations() {
+  for (const migration of MIGRATIONS) {
+    const once = migration.runOnce !== false;
+
+    if (
+      migration.id === "001-localStorage-to-indexeddb" &&
+      localStorage.getItem("indexeddb-migration-complete")
+    ) {
+      localStorage.setItem(migrationKey(migration.id), "true");
+    }
+
+    if (once && localStorage.getItem(migrationKey(migration.id))) continue;
+
+    try {
+      await migration.run();
+      if (once) {
+        localStorage.setItem(migrationKey(migration.id), "true");
+      }
+    } catch (err) {
+      throw new Error(`Migration "${migration.id}" failed: ${err.message}`);
+    }
+  }
+}
+
+async function migrateLocalStorageToIndexedDB() {
+  const BOARDS_KEY = "kanban-boards";
   const boardsRaw = localStorage.getItem(BOARDS_KEY);
-  if (!boardsRaw) {
-    localStorage.setItem(MIGRATION_FLAG, "true");
-    return;
-  }
+
+  if (!boardsRaw) return;
 
   let boards;
   try {
     boards = JSON.parse(boardsRaw);
-  } catch (e) {
-    throw new Error("Migration failed: corrupted boards data in localStorage");
+  } catch {
+    throw new Error("corrupted boards data in localStorage");
   }
 
-  if (!Array.isArray(boards) || boards.length === 0) {
-    localStorage.setItem(MIGRATION_FLAG, "true");
-    return;
-  }
+  if (!Array.isArray(boards) || boards.length === 0) return;
 
   const db = await getDb();
   const tx = db.transaction(["boards", "tasks", "manifest"], "readwrite");
@@ -54,9 +89,10 @@ export async function migrateFromLocalStorage() {
       let tasks;
       try {
         tasks = JSON.parse(tasksRaw);
-      } catch (e) {
-        throw new Error(`Migration failed: corrupted task data for board ${board.id}`);
+      } catch {
+        throw new Error(`corrupted task data for board ${board.id}`);
       }
+
       if (Array.isArray(tasks)) {
         for (const task of tasks) {
           tx.objectStore("tasks").put({
@@ -83,5 +119,31 @@ export async function migrateFromLocalStorage() {
     localStorage.removeItem(`tasks-${board.id}`);
   }
   localStorage.removeItem(BOARDS_KEY);
-  localStorage.setItem(MIGRATION_FLAG, "true");
+}
+
+async function hydrateUserIds() {
+  const userId = getCurrentUserId();
+  if (!userId) return;
+
+  const db = await getDb();
+
+  const boards = await db.getAll("boards");
+  const orphanBoards = boards.filter((b) => !b.userId);
+  if (orphanBoards.length > 0) {
+    const tx = db.transaction("boards", "readwrite");
+    for (const board of orphanBoards) {
+      tx.store.put({ ...board, userId });
+    }
+    await tx.done;
+  }
+
+  const tasks = await db.getAll("tasks");
+  const orphanTasks = tasks.filter((t) => !t.userId);
+  if (orphanTasks.length > 0) {
+    const tx = db.transaction("tasks", "readwrite");
+    for (const task of orphanTasks) {
+      tx.store.put({ ...task, userId });
+    }
+    await tx.done;
+  }
 }

@@ -11,7 +11,7 @@ router.use(taskLimiter);
 router.get("/", async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT t.id, t.board_id, t.title, t.column_id, t.priority, t.deadline, t.created_at
+      `SELECT t.id, t.board_id, t.title, t.column_id, t.priority, t.deadline, t.created_at, t.updated_at
        FROM tasks t
        JOIN boards b ON t.board_id = b.id
        LEFT JOIN board_members bm ON b.id = bm.board_id
@@ -61,7 +61,16 @@ async function handleCreateTask(req, res) {
       .json({ success: false, message: "Unauthorized board" });
 
   const result = await pool.query(
-    `INSERT INTO tasks (id, board_id, title, column_id, priority, deadline) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+    `INSERT INTO tasks (id, board_id, title, column_id, priority, deadline)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (id) DO UPDATE SET
+       title = EXCLUDED.title,
+       column_id = EXCLUDED.column_id,
+       priority = EXCLUDED.priority,
+       deadline = EXCLUDED.deadline,
+       is_deleted = FALSE,
+       updated_at = CURRENT_TIMESTAMP
+     RETURNING *`,
     [
       id,
       board_id,

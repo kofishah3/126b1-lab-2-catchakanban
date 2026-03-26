@@ -10,7 +10,8 @@ import {
   putBoard,
   removeBoard,
 } from "../data/local/storage.js";
-import { recordChange } from "../data/local/manifest.js";
+import { recordChange, clearManifestEntry } from "../data/local/manifest.js";
+import { pushTask, pushBoard, isServerReachable, markServerReachable } from "../data/remote/api.js";
 import { showToast } from "../components/toast/toast.js";
 
 function getUserId() {
@@ -29,10 +30,14 @@ let socket;
 
 export function connectSocket(boardId) {
   const token = localStorage.getItem("token");
-  if (!token || !window.io) return;
+  if (!token || !window.io || !isServerReachable()) return;
 
   if (!socket) {
-    socket = window.io("http://localhost:3000", { auth: { token } });
+    socket = window.io("http://localhost:3000", {
+      auth: { token },
+      reconnectionAttempts: 3,
+      reconnectionDelay: 2000,
+    });
     setupSocketListeners();
   }
   if (boardId) {
@@ -58,21 +63,18 @@ async function setupSocketListeners() {
   });
 
   socket.on("taskCreated", async (data) => {
-    const db = await getDb();
     await putTask(data.task);
     document.dispatchEvent(new CustomEvent("refresh-board"));
     showToast(`${data.sender} added a task: ${data.task.title}`, "info");
   });
 
   socket.on("taskUpdated", async (data) => {
-    const db = await getDb();
     await putTask(data.task);
     document.dispatchEvent(new CustomEvent("refresh-board"));
     showToast(`${data.sender} updated task: ${data.task.title}`, "info");
   });
 
   socket.on("taskDeleted", async (data) => {
-    const db = await getDb();
     await removeTask(data.taskId);
     document.dispatchEvent(new CustomEvent("refresh-board"));
     showToast(`${data.sender} deleted a task`, "info");
@@ -85,16 +87,13 @@ export async function getTasks(boardId) {
 
 async function pullTasksFromServer() {
   const token = localStorage.getItem("token");
-  if (!token) return;
-  try {
-    const res = await fetch("http://localhost:3000/tasks", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const data = await res.json();
-    if (data.success) await saveServerTasksLocally(data.tasks);
-  } catch (err) {
-    console.error("Failed to pull tasks", err);
-  }
+  if (!token || !isServerReachable()) return;
+
+  const res = await fetch("http://localhost:3000/tasks", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json();
+  if (data.success) await saveServerTasksLocally(data.tasks);
 }
 
 async function saveServerTasksLocally(serverTasks) {
@@ -152,14 +151,7 @@ export async function addTask(boardId, taskData) {
     socket.emit("taskCreated", { boardId, task: newTask });
   }
 
-  syncTaskWithServer("create", {
-    id: newTask.id,
-    board_id: boardId,
-    title: newTask.title,
-    column_id: newTask.columnId,
-    priority: newTask.priority,
-    deadline: newTask.deadline,
-  });
+  syncTaskNow("create", newTask);
 
   showToast(`Added a task: ${newTask.title}`, "success");
   return newTask;
@@ -190,13 +182,7 @@ export async function updateTask(boardId, taskId, updates) {
     socket.emit("taskUpdated", { boardId, task: updatedTask });
   }
 
-  syncTaskWithServer("update", {
-    id: updatedTask.id,
-    title: updatedTask.title,
-    column_id: updatedTask.columnId,
-    priority: updatedTask.priority,
-    deadline: updatedTask.deadline,
-  });
+  syncTaskNow("update", updatedTask);
 
   return updatedTask;
 }
@@ -220,23 +206,36 @@ export async function deleteTask(boardId, taskId) {
     socket.emit("taskDeleted", { boardId, taskId });
   }
 
-  syncTaskWithServer("delete", { id: taskId });
+  syncTaskNow("delete", { id: taskId });
 
   showToast(`Deleted task`, "success");
 }
 
-function syncTaskWithServer(action, payload) {
-  const token = localStorage.getItem("token");
-  if (!token) return;
+async function syncTaskNow(action, task) {
+  for (let i = 0; i < 3; i++) {
+    markServerReachable();
+    try {
+      await pushTask(task, action);
+      await clearManifestEntry(`task:${task.id}`);
+      return;
+    } catch {
+      if (i < 2) await new Promise(r => setTimeout(r, 2000));
+    }
+  }
+  // All retries failed — manifest entry stays, networkSync retries next cycle
+}
 
-  fetch("http://localhost:3000/tasks", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ action, ...payload }),
-  }).catch(() => {});
+async function syncBoardNow(action, board) {
+  for (let i = 0; i < 3; i++) {
+    markServerReachable();
+    try {
+      await pushBoard(board, action);
+      await clearManifestEntry(`board:${board.id}`);
+      return;
+    } catch {
+      if (i < 2) await new Promise(r => setTimeout(r, 2000));
+    }
+  }
 }
 
 export async function moveTask(boardId, taskId, newColumnId) {
@@ -261,9 +260,13 @@ export async function clearAllBoardTasks(boardId) {
 }
 
 export async function getBoards() {
-  await pullBoardsFromServer();
-  await pullTasksFromServer();
-  await pushLocalBoardsToServer();
+  try {
+    await pullBoardsFromServer();
+    await pullTasksFromServer();
+    await pushLocalBoardsToServer();
+  } catch {
+    // Server unreachable — fall back to local data
+  }
 
   const userId = getUserId();
   const allBoards = await getAllBoards();
@@ -275,16 +278,13 @@ export async function getBoards() {
 
 async function pullBoardsFromServer() {
   const token = localStorage.getItem("token");
-  if (!token) return;
-  try {
-    const res = await fetch("http://localhost:3000/boards", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const data = await res.json();
-    if (data.success) await saveServerBoardsLocally(data.boards);
-  } catch (err) {
-    console.error("Failed to pull boards", err);
-  }
+  if (!token || !isServerReachable()) return;
+
+  const res = await fetch("http://localhost:3000/boards", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json();
+  if (data.success) await saveServerBoardsLocally(data.boards);
 }
 
 async function saveServerBoardsLocally(serverBoards) {
@@ -311,19 +311,19 @@ async function saveServerBoardsLocally(serverBoards) {
 async function pushLocalBoardsToServer() {
   const userId = getUserId();
   const token = localStorage.getItem("token");
-  if (!token) return;
+  if (!token || !isServerReachable()) return;
 
   const localBoards = await getAllBoards();
   for (const b of localBoards) {
     if (b.userId === userId) {
-      fetch("http://localhost:3000/boards", {
+      await fetch("http://localhost:3000/boards", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ id: b.id, name: b.name }),
-      }).catch(() => {});
+      });
     }
   }
 }
@@ -350,21 +350,7 @@ export async function addBoard(name) {
 
   await tx.done;
 
-  const token = localStorage.getItem("token");
-  if (token) {
-    try {
-      await fetch("http://localhost:3000/boards", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ id: newBoard.id, name: newBoard.name }),
-      });
-    } catch (err) {
-      console.error("Failed to sync board creation", err);
-    }
-  }
+  syncBoardNow("create", newBoard);
 
   return newBoard;
 }
@@ -392,15 +378,6 @@ export async function deleteBoard(boardId) {
   await recordChange("board", boardId, "deleted", tx);
 
   await tx.done;
-  deleteBoardFromServer(boardId);
-}
 
-function deleteBoardFromServer(boardId) {
-  const token = localStorage.getItem("token");
-  if (token) {
-    fetch(`http://localhost:3000/boards/${boardId}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${token}` },
-    }).catch((err) => console.error(err));
-  }
+  syncBoardNow("delete", { id: boardId });
 }
