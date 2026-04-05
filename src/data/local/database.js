@@ -1,12 +1,18 @@
-const { openDB } = window.idb;
-
 let dbPromise = null;
+
+function getOpenDB() {
+  if (!window.idb?.openDB) {
+    throw new Error("Unable to initialize IndexedDB helper (openDB).");
+  }
+  return window.idb.openDB;
+}
 
 /**
  * @returns {Promise<IDBDatabase>}
  */
 export function getDb() {
   if (!dbPromise) {
+    const openDB = getOpenDB();
     dbPromise = openDB("catcha-kanban", 1, {
       upgrade(db) {
         db.createObjectStore("boards", { keyPath: "id" });
