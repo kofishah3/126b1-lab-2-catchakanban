@@ -2,82 +2,119 @@
  * Task Card Schema:
  * {
  *   id: string,
- *   boardId: string,   // The board this task belongs to
+ *   boardId: string,
  *   title: string,
- *   // description: string,
  *   createdAt: date,
+ *   updatedAt: date,
  *   deadline: date,
- *   // (optional, e.g., "2024-12-31"),
  *   priority: string,      // ("Low", "Medium", "High"),
- *   columnId: string,      // The status of the card, or the column this task belongs to (e.g., "todo", "doing", "done")
+ *   columnId: string,      // ("todo", "doing", "done")
  * }
  */
 
-// ===== UTILITIES =====
-
-/**
- * @param {string} boardId
- * @returns {string}
- */
-function getTasksKey(boardId) {
-  return `tasks-${boardId}`;
-}
+import { getDb } from "./database.js";
 
 /**
  * @returns {string}
  */
 export function generateTaskId() {
+  if (crypto.randomUUID) {
+    return `task-${crypto.randomUUID()}`;
+  }
   return `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
-// ===== DATA LAYER (CRUD) =====
+/**
+ * @param {string} boardId
+ * @returns {Promise<Array>}
+ */
+export async function loadTasks(boardId) {
+  const db = await getDb();
+  return db.getAllFromIndex("tasks", "by-board", boardId);
+}
+
+/**
+ * @param {Object} task
+ * @param {IDBTransaction} [tx] - optional existing transaction
+ */
+export async function putTask(task, tx) {
+  if (tx) {
+    tx.objectStore("tasks").put(task);
+  } else {
+    const db = await getDb();
+    await db.put("tasks", task);
+  }
+}
+
+/**
+ * @param {string} taskId
+ * @param {IDBTransaction} [tx] - optional existing transaction
+ */
+export async function removeTask(taskId, tx) {
+  if (tx) {
+    tx.objectStore("tasks").delete(taskId);
+  } else {
+    const db = await getDb();
+    await db.delete("tasks", taskId);
+  }
+}
+
+/**
+ * @param {string} taskId
+ * @returns {Promise<Object|undefined>}
+ */
+export async function getTask(taskId) {
+  const db = await getDb();
+  return db.get("tasks", taskId);
+}
 
 /**
  * @param {string} boardId
- * @returns {Array}
  */
-export function loadTasks(boardId) {
-  const key = getTasksKey(boardId);
-  const data = localStorage.getItem(key);
+export async function clearBoardTasks(boardId) {
+  const db = await getDb();
+  const tx = db.transaction("tasks", "readwrite");
+  const index = tx.store.index("by-board");
+  let cursor = await index.openCursor(boardId);
 
-  if (!data) {
-    return [];
+  while (cursor) {
+    cursor.delete();
+    cursor = await cursor.continue();
   }
 
-  const tasks = JSON.parse(data);
-  return Array.isArray(tasks) ? tasks : [];
+  await tx.done;
+}
+
+/**
+ * @returns {Promise<Array>}
+ */
+export async function getBoards() {
+  const db = await getDb();
+  return db.getAll("boards");
+}
+
+/**
+ * @param {Object} board
+ * @param {IDBTransaction} [tx] - optional existing transaction
+ */
+export async function putBoard(board, tx) {
+  if (tx) {
+    tx.objectStore("boards").put(board);
+  } else {
+    const db = await getDb();
+    await db.put("boards", board);
+  }
 }
 
 /**
  * @param {string} boardId
- * @param {Array} tasks
+ * @param {IDBTransaction} [tx] - optional existing transaction
  */
-export function saveTasks(boardId, tasks) {
-  const key = getTasksKey(boardId);
-  localStorage.setItem(key, JSON.stringify(tasks));
-}
-
-/**
- * @param {string} boardId
- */
-export function clearTasksKey(boardId) {
-  const key = getTasksKey(boardId);
-  localStorage.removeItem(key);
-}
-
-const BOARDS_KEY = "kanban-boards";
-
-/**
- * @returns {Array}
- */
-export function getBoards() {
-  const data = localStorage.getItem(BOARDS_KEY);
-  return data ? JSON.parse(data) : [];
-}
-
-/**
- * @param {Array} boards
- */
-export function saveBoards(boards) {
-  localStorage.setItem(BOARDS_KEY, JSON.stringify(boards));
+export async function removeBoard(boardId, tx) {
+  if (tx) {
+    tx.objectStore("boards").delete(boardId);
+  } else {
+    const db = await getDb();
+    await db.delete("boards", boardId);
+  }
 }

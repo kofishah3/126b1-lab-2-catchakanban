@@ -1,153 +1,389 @@
+import { API_BASE } from "../config.js";
+import { getDb } from "../data/local/database.js";
 import {
   generateTaskId,
   loadTasks,
-  saveTasks,
-  clearTasksKey,
-  getBoards,
-  saveBoards,
+  putTask,
+  removeTask,
+  getTask,
+  clearBoardTasks,
+  getBoards as getAllBoards,
+  putBoard,
+  removeBoard,
 } from "../data/local/storage.js";
+import { recordChange, clearManifestEntry } from "../data/local/manifest.js";
+import {
+  pushTask,
+  pushBoard,
+  isServerReachable,
+  markServerReachable,
+} from "../data/remote/api.js";
+import { showToast } from "../components/toast/toast.js";
 
-// ===== TASK SYNC OPERATIONS =====
+function getUserId() {
+  const token = localStorage.getItem("token");
+  if (!token) return null;
 
-/**
- * Get all tasks for a specific board
- * @param {string} boardId
- * @returns {Array}
- */
-export function getTasks(boardId) {
-  return loadTasks(boardId);
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    return payload.id;
+  } catch {
+    return null;
+  }
 }
 
-/**
- * Get tasks filtered by column for a specific board
- * @param {string} boardId
- * @param {string} columnId
- * @returns {Array}
- */
-export function getTasksByColumn(boardId, columnId) {
-  const tasks = loadTasks(boardId);
-  return tasks.filter((task) => task.columnId === columnId);
+let socket;
+
+export function connectSocket(boardId) {
+  const token = localStorage.getItem("token");
+  if (!token || !window.io || !isServerReachable()) return;
+
+  if (!socket) {
+    socket = window.io(API_BASE, {
+      auth: { token },
+      reconnectionAttempts: 3,
+      reconnectionDelay: 2000,
+    });
+    setupSocketListeners();
+  }
+  if (boardId) {
+    socket.emit("joinBoard", boardId);
+  }
 }
 
-/**
- * Add a new task to a board
- * @param {string} boardId
- * @param {Object} taskData
- * @returns {Object} The created task object
- */
-export function addTask(boardId, taskData) {
-  const tasks = loadTasks(boardId);
+async function setupSocketListeners() {
+  socket.on("boardInvited", async () => {
+    showToast("You were invited to a new board!", "info");
+    await getBoards();
+    document.dispatchEvent(new CustomEvent("refresh-boards-nav"));
+  });
+
+  socket.on("boardDeleted", async (data) => {
+    const db = await getDb();
+    const tx = db.transaction(["boards"], "readwrite");
+    await removeBoard(data.boardId, tx);
+    await tx.done;
+
+    showToast("The owner deleted this board", "error");
+    document.dispatchEvent(new CustomEvent("refresh-boards-nav"));
+  });
+
+  socket.on("taskCreated", async (data) => {
+    await putTask(data.task);
+    document.dispatchEvent(new CustomEvent("refresh-board"));
+    showToast(`${data.sender} added a task: ${data.task.title}`, "info");
+  });
+
+  socket.on("taskUpdated", async (data) => {
+    await putTask(data.task);
+    document.dispatchEvent(new CustomEvent("refresh-board"));
+    showToast(`${data.sender} updated task: ${data.task.title}`, "info");
+  });
+
+  socket.on("taskDeleted", async (data) => {
+    await removeTask(data.taskId);
+    document.dispatchEvent(new CustomEvent("refresh-board"));
+    showToast(`${data.sender} deleted a task`, "info");
+  });
+}
+
+export async function getTasks(boardId) {
+  return await loadTasks(boardId);
+}
+
+async function pullTasksFromServer() {
+  const token = localStorage.getItem("token");
+  if (!token || !isServerReachable()) return;
+
+  const res = await fetch(`${API_BASE}/tasks`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json();
+  if (data.success) await saveServerTasksLocally(data.tasks);
+}
+
+async function saveServerTasksLocally(serverTasks) {
+  const db = await getDb();
+  const tx = db.transaction(["tasks"], "readwrite");
+  for (const t of serverTasks) {
+    tx.objectStore("tasks").put({
+      id: t.id,
+      boardId: t.board_id,
+      userId: getUserId(),
+      title: t.title,
+      columnId: t.column_id,
+      priority: t.priority,
+      deadline: t.deadline,
+      createdAt: t.created_at,
+      updatedAt: t.updated_at || t.created_at,
+    });
+  }
+  await tx.done;
+}
+
+export async function getTasksByColumn(boardId, columnId) {
+  const db = await getDb();
+  return await db.getAllFromIndex("tasks", "by-board-column", [
+    boardId,
+    columnId,
+  ]);
+}
+
+export async function addTask(boardId, taskData) {
+  const userId = getUserId();
+  const now = new Date().toISOString();
 
   const newTask = {
     id: generateTaskId(),
+    boardId,
+    userId,
     title: taskData.title || "Untitled Task",
-    createdAt: taskData.createdAt || new Date().toISOString(),
+    createdAt: taskData.createdAt || now,
+    updatedAt: now,
     deadline: taskData.deadline || null,
     priority: taskData.priority || null,
     columnId: taskData.columnId || "todo",
   };
 
-  tasks.push(newTask);
-  saveTasks(boardId, tasks);
+  const db = await getDb();
+  const tx = db.transaction(["tasks", "manifest"], "readwrite");
 
+  await putTask(newTask, tx);
+  await recordChange("task", newTask.id, "created", tx);
+
+  await tx.done;
+
+  if (socket) {
+    socket.emit("taskCreated", { boardId, task: newTask });
+  }
+
+  syncTaskNow("create", newTask);
+
+  showToast(`Added a task: ${newTask.title}`, "success");
   return newTask;
 }
 
-/**
- * Update an existing task's properties
- * @param {string} boardId
- * @param {string} taskId
- * @param {Object} updates
- * @returns {Object} The updated task object
- * @throws {Error} If task is not found in the board
- */
-export function updateTask(boardId, taskId, updates) {
-  const tasks = loadTasks(boardId);
-  const taskIndex = tasks.findIndex((task) => task.id === taskId);
+export async function updateTask(boardId, taskId, updates) {
+  const existing = await getTask(taskId);
 
-  if (taskIndex === -1) {
+  if (!existing || existing.boardId !== boardId) {
     throw new Error(`Task not found: ${taskId}`);
   }
 
-  tasks[taskIndex] = {
-    ...tasks[taskIndex],
+  const updatedTask = {
+    ...existing,
     ...updates,
-    id: tasks[taskIndex].id,
-    createdAt: tasks[taskIndex].createdAt,
+    updatedAt: new Date().toISOString(),
   };
 
-  saveTasks(boardId, tasks);
+  const db = await getDb();
+  const tx = db.transaction(["tasks", "manifest"], "readwrite");
 
-  return tasks[taskIndex];
+  await putTask(updatedTask, tx);
+  await recordChange("task", taskId, "modified", tx);
+
+  await tx.done;
+
+  if (socket) {
+    socket.emit("taskUpdated", { boardId, task: updatedTask });
+  }
+
+  syncTaskNow("update", updatedTask);
+
+  return updatedTask;
 }
 
-/**
- * Delete a task from a board
- * @param {string} boardId
- * @param {string} taskId
- * @throws {Error} If task is not found in the board
- */
-export function deleteTask(boardId, taskId) {
-  const tasks = loadTasks(boardId);
-  const filteredTasks = tasks.filter((task) => task.id !== taskId);
+export async function deleteTask(boardId, taskId) {
+  const existing = await getTask(taskId);
 
-  if (filteredTasks.length === tasks.length) {
+  if (!existing || existing.boardId !== boardId) {
     throw new Error(`Task not found: ${taskId}`);
   }
 
-  saveTasks(boardId, filteredTasks);
+  const db = await getDb();
+  const tx = db.transaction(["tasks", "manifest"], "readwrite");
+
+  await removeTask(taskId, tx);
+  await recordChange("task", taskId, "deleted", tx);
+
+  await tx.done;
+
+  if (socket) {
+    socket.emit("taskDeleted", { boardId, taskId });
+  }
+
+  syncTaskNow("delete", { id: taskId });
+
+  showToast(`Deleted task`, "success");
 }
 
-/**
- * Move a task to a different column
- * @param {string} boardId
- * @param {string} taskId
- * @param {string} newColumnId
- * @returns {Object} The updated task object
- */
-export function moveTask(boardId, taskId, newColumnId) {
+async function syncTaskNow(action, task) {
+  for (let i = 0; i < 3; i++) {
+    markServerReachable();
+    try {
+      await pushTask(task, action);
+      await clearManifestEntry(`task:${task.id}`);
+      return;
+    } catch {
+      if (i < 2) await new Promise((r) => setTimeout(r, 2000));
+    }
+  }
+  // All retries failed — manifest entry stays, networkSync retries next cycle
+}
+
+async function syncBoardNow(action, board) {
+  for (let i = 0; i < 3; i++) {
+    markServerReachable();
+    try {
+      await pushBoard(board, action);
+      await clearManifestEntry(`board:${board.id}`);
+      return;
+    } catch {
+      if (i < 2) await new Promise((r) => setTimeout(r, 2000));
+    }
+  }
+}
+
+export async function moveTask(boardId, taskId, newColumnId) {
   return updateTask(boardId, taskId, { columnId: newColumnId });
 }
 
-/**
- * Remove all tasks belonging to a board
- * @param {string} boardId
- */
-export function clearBoardTasks(boardId) {
-  clearTasksKey(boardId);
+export async function clearAllBoardTasks(boardId) {
+  const userId = getUserId();
+  const tasks = await loadTasks(boardId);
+
+  const db = await getDb();
+  const tx = db.transaction(["tasks", "manifest"], "readwrite");
+
+  for (const task of tasks) {
+    if (task.userId === userId) {
+      tx.objectStore("tasks").delete(task.id);
+      await recordChange("task", task.id, "deleted", tx);
+    }
+  }
+
+  await tx.done;
 }
 
-// ===== BOARD SYNC OPERATIONS =====
+export async function getBoards() {
+  try {
+    await pullBoardsFromServer();
+    await pullTasksFromServer();
+    await pushLocalBoardsToServer();
+  } catch {
+    // Server unreachable — fall back to local data
+  }
 
-export { getBoards };
+  const userId = getUserId();
+  const allBoards = await getAllBoards();
 
-/**
- * Add a new board
- * @param {string} name
- * @returns {Object} The created board object
- */
-export function addBoard(name) {
-  const boards = getBoards();
+  return allBoards.filter(
+    (b) => b.userId === userId || (b.members && b.members.includes(userId)),
+  );
+}
+
+async function pullBoardsFromServer() {
+  const token = localStorage.getItem("token");
+  if (!token || !isServerReachable()) return;
+
+  const res = await fetch(`${API_BASE}/boards`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json();
+  if (data.success) await saveServerBoardsLocally(data.boards);
+}
+
+async function saveServerBoardsLocally(serverBoards) {
+  const userId = getUserId();
+  const db = await getDb();
+  const tx = db.transaction(["boards"], "readwrite");
+  for (const b of serverBoards) {
+    const existing = await tx.objectStore("boards").get(b.id);
+    const members = existing && existing.members ? existing.members : [];
+    if (!members.includes(userId)) members.push(userId);
+
+    tx.objectStore("boards").put({
+      id: b.id,
+      name: b.name,
+      userId: b.user_id,
+      createdAt: b.created_at,
+      updatedAt: b.updated_at,
+      members: members,
+    });
+  }
+  await tx.done;
+}
+
+async function pushLocalBoardsToServer() {
+  const userId = getUserId();
+  const token = localStorage.getItem("token");
+  if (!token || !isServerReachable()) return;
+
+  const localBoards = await getAllBoards();
+  for (const b of localBoards) {
+    if (b.userId === userId) {
+      await fetch(`${API_BASE}/boards`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id: b.id, name: b.name }),
+      });
+    }
+  }
+}
+
+export async function addBoard(name) {
+  const userId = getUserId();
+  const now = new Date().toISOString();
 
   const newBoard = {
-    id: `board-${Date.now()}`,
+    id: crypto.randomUUID
+      ? `board-${crypto.randomUUID()}`
+      : `board-${Date.now()}`,
     name,
+    userId,
+    createdAt: now,
+    updatedAt: now,
   };
 
-  boards.push(newBoard);
-  saveBoards(boards);
+  const db = await getDb();
+  const tx = db.transaction(["boards", "manifest"], "readwrite");
+
+  await putBoard(newBoard, tx);
+  await recordChange("board", newBoard.id, "created", tx);
+
+  await tx.done;
+
+  syncBoardNow("create", newBoard);
 
   return newBoard;
 }
 
-/**
- * Delete a board and all its tasks
- * @param {string} boardId
- */
-export function deleteBoard(boardId) {
-  clearBoardTasks(boardId);
+export async function deleteBoard(boardId) {
+  const userId = getUserId();
+  const board = (await getAllBoards()).find((b) => b.id === boardId);
 
-  const boards = getBoards();
-  const filtered = boards.filter((b) => b.id !== boardId);
-  saveBoards(filtered);
+  if (!board || board.userId !== userId) {
+    throw new Error("Only the author can delete this board");
+  }
+
+  const tasks = await loadTasks(boardId);
+  const db = await getDb();
+  const tx = db.transaction(["boards", "tasks", "manifest"], "readwrite");
+
+  for (const task of tasks) {
+    if (task.userId === userId) {
+      tx.objectStore("tasks").delete(task.id);
+      await recordChange("task", task.id, "deleted", tx);
+    }
+  }
+
+  await removeBoard(boardId, tx);
+  await recordChange("board", boardId, "deleted", tx);
+
+  await tx.done;
+
+  syncBoardNow("delete", { id: boardId });
 }

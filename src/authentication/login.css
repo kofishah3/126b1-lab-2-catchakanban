@@ -1,0 +1,22 @@
+.card-sm {
+  max-width: 350px;
+  padding: 2rem;
+}
+
+.input-wrap {
+  position: relative;
+}
+
+.input-icon-btn {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #888;
+}
+
+.input-icon-btn:hover {
+  color: var(--primary-color);
+}

@@ -9,8 +9,18 @@ Thumbs.db
 *.swo
 *~
 
+# Dependencies
+node_modules/
+dist/
+build/
+
 # Logs
 *.log
+npm-debug.log*
 
 # Temporary files
 *.tmp
+
+# Environment variables
+.env
+.env.*

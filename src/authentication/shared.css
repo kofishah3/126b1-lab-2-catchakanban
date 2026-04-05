@@ -1,0 +1,151 @@
+:root {
+  --primary-color: #0077cc;
+  --secondary-color: #005fa3;
+  --bg-color: #f5f7fa;
+  --card-bg: #ffffff;
+  --text-color: #333;
+  --border-radius: 10px;
+  --transition: 0.3s;
+  --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-family);
+}
+
+body {
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  outline: none;
+}
+
+input {
+  outline: none;
+  border: 1px solid #ccc;
+  border-radius: var(--border-radius);
+  padding: 0.6rem 0.8rem;
+  font-size: 1rem;
+  width: 100%;
+  transition: border-color var(--transition);
+}
+
+input:focus {
+  border-color: var(--primary-color);
+}
+
+.card {
+  background-color: var(--card-bg);
+  border-radius: var(--border-radius);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  padding: 2rem;
+  width: 100%;
+  max-width: 400px;
+}
+
+.card-title {
+  font-size: 1.4rem;
+  font-weight: bold;
+  margin-bottom: 0.25rem;
+}
+
+.card-subtitle {
+  font-size: 0.9rem;
+  margin-bottom: 1.5rem;
+  color: #666;
+}
+
+.logo {
+  font-size: 1.5rem;
+  font-weight: bold;
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.logo span {
+  color: var(--primary-color);
+}
+
+.form-group {
+  margin-bottom: 1rem;
+}
+
+.btn {
+  display: inline-block;
+  padding: 0.6rem 1rem;
+  border-radius: var(--border-radius);
+  font-weight: bold;
+  transition: background-color var(--transition);
+}
+
+.btn-primary {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: var(--secondary-color);
+}
+
+.btn-full {
+  width: 100%;
+}
+
+.back-link {
+  background: none;
+  color: var(--primary-color);
+  font-weight: bold;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.back-link:hover {
+  text-decoration: underline;
+}
+
+.alert {
+  color: red;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.footer-link {
+  margin-top: 1.5rem;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+.footer-link button {
+  background: none;
+  color: var(--primary-color);
+  font-weight: bold;
+}
+
+.divider {
+  text-align: center;
+  margin: 1rem 0;
+  font-size: 0.9rem;
+  color: #888;
+}
+
+.success-screen {
+  text-align: center;
+}
+
+.success-screen h2 {
+  color: var(--primary-color);
+  margin-bottom: 0.5rem;
+}

@@ -1,0 +1,32 @@
+{
+  "name": "126b1-lab-2-catchakanban",
+  "version": "1.0.0",
+  "description": "```\r catcha-kanban/\r ├── utils/\r |   ├── dom-utils.js\r ├── styles.css\r ├── src/\r │   ├── main.js\r |   ├── api/\r |       └── storage.js\r │   └── components/\r │       ├── kanban-board-modal/\r │           ├── kanban-board-modal.css\r |           ├── kanban-board-modal.html\r │           └── kanban-board-modal.js\r |       ├── kanban-column/\r │           ├── kanban-column.css\r |           ├── kanban-column.html\r │           └── kanban-column.js\r |       ├── task-card/\r │           ├── task-card.css\r |           ├── task-card.html\r │           └── task-card.js\r |       └── task-modal/\r │           ├── task-modal.css\r |           ├── task-modal.html\r │           └── task-modal.js\r         └── delete-modal/\r │           ├── delete-modal.css\r |           ├── delete-modal.html\r │           └── delete-modal.js\r ├── .gitignore\r ├──  README.md\r └── index.html       # Open with Live Server to run\r ```",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kofishah3/126b1-lab-2-catchakanban.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/kofishah3/126b1-lab-2-catchakanban/issues"
+  },
+  "homepage": "https://github.com/kofishah3/126b1-lab-2-catchakanban#readme",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.3.1",
+    "jsonwebtoken": "^9.0.3",
+    "node-cron": "^4.2.1",
+    "pg": "^8.20.0",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3"
+  }
+}
